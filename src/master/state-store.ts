@@ -47,6 +47,13 @@ export interface QueuedDispatch {
   command: CommandRecord;
 }
 
+interface ResolvedDispatchRequest {
+  commandType: CommandType;
+  payload: Record<string, unknown>;
+  hostId?: string;
+  workspaceId?: string;
+}
+
 export class StateStore extends EventEmitter {
   private readonly stateFile: string;
 
@@ -118,21 +125,25 @@ export class StateStore extends EventEmitter {
 
   public createMessageAndDispatch(request: CreateMessageRequest): { message: MessageRecord; dispatch?: QueuedDispatch } {
     const message = this.createMessage("user", request.text);
+    const resolvedRequest = this.resolveDispatchRequest(request);
 
-    if (!request.commandType) {
-      this.createMessage("assistant", "Message stored. No command dispatched.");
+    if (!resolvedRequest) {
+      this.createMessage(
+        "assistant",
+        "Iteration 001 can currently read files, write files, and run shell commands. Try messages like 'read README.md', 'write notes/todo.md: buy milk', or 'run git status'.",
+      );
       return { message };
     }
 
-    const host = request.hostId
-      ? this.state.hosts.find((candidate) => candidate.id === request.hostId && candidate.connected)
+    const host = resolvedRequest.hostId
+      ? this.state.hosts.find((candidate) => candidate.id === resolvedRequest.hostId && candidate.connected)
       : this.state.hosts.find((candidate) => candidate.connected);
     if (!host) {
       throw new Error("No connected host is available.");
     }
 
-    const workspace = request.workspaceId
-      ? this.state.workspaces.find((candidate) => candidate.id === request.workspaceId && candidate.hostId === host.id)
+    const workspace = resolvedRequest.workspaceId
+      ? this.state.workspaces.find((candidate) => candidate.id === resolvedRequest.workspaceId && candidate.hostId === host.id)
       : this.state.workspaces.find((candidate) => candidate.hostId === host.id);
     if (!workspace) {
       throw new Error(`No workspace is available for host ${host.id}.`);
@@ -154,8 +165,8 @@ export class StateStore extends EventEmitter {
       runId: run.id,
       targetHost: host.id,
       targetWorkspace: workspace.id,
-      type: request.commandType,
-      payload: request.payload ?? {},
+      type: resolvedRequest.commandType,
+      payload: resolvedRequest.payload,
       status: "queued",
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -172,7 +183,7 @@ export class StateStore extends EventEmitter {
       status: command.status,
       type: command.type,
     });
-    this.createMessage("assistant", `Dispatching ${command.type} to ${host.name}/${workspace.name}.`, run.id);
+    this.createMessage("assistant", this.buildDispatchMessage(command, host.name, workspace.name), run.id);
 
     return { message, dispatch: { hostId: host.id, command } };
   }
@@ -273,6 +284,55 @@ export class StateStore extends EventEmitter {
     return message;
   }
 
+  private resolveDispatchRequest(request: CreateMessageRequest): ResolvedDispatchRequest | undefined {
+    if (request.commandType) {
+      return {
+        commandType: request.commandType,
+        payload: request.payload ?? {},
+        hostId: request.hostId,
+        workspaceId: request.workspaceId,
+      };
+    }
+
+    const text = request.text.trim();
+    if (!text) {
+      return undefined;
+    }
+
+    const readMatch = text.match(/^(?:read|open|show|cat)\s+(.+)$/i);
+    if (readMatch?.[1]) {
+      return {
+        commandType: "workspace.read_file",
+        payload: { path: sanitizePath(readMatch[1]) },
+      };
+    }
+
+    const writeMatch = text.match(/^write\s+([^\s:]+)\s*:\s*([\s\S]+)$/i);
+    if (writeMatch?.[1] && writeMatch[2]) {
+      return {
+        commandType: "workspace.write_file",
+        payload: {
+          path: sanitizePath(writeMatch[1]),
+          content: writeMatch[2],
+        },
+      };
+    }
+
+    const runMatch = text.match(/^run\s+([\s\S]+)$/i);
+    if (runMatch?.[1]) {
+      return {
+        commandType: "process.run",
+        payload: {
+          command: "sh",
+          args: ["-lc", runMatch[1].trim()],
+          cwd: ".",
+        },
+      };
+    }
+
+    return undefined;
+  }
+
   private buildArtifact(
     command: CommandRecord,
     run: RunRecord,
@@ -296,19 +356,37 @@ export class StateStore extends EventEmitter {
     };
   }
 
+  private buildDispatchMessage(command: CommandRecord, hostName: string, workspaceName: string): string {
+    if (command.type === "workspace.read_file") {
+      return `Reading ${String(command.payload.path)} on ${hostName}.`;
+    }
+
+    if (command.type === "workspace.write_file") {
+      return `Writing ${String(command.payload.path)} on ${hostName}.`;
+    }
+
+    return `Running a shell command on ${hostName}/${workspaceName}.`;
+  }
+
   private buildCompletionMessage(command: CommandRecord, artifact: ArtifactRecord): string {
     if (artifact.kind === "file-ref") {
       const relativePath = artifact.metadata.relativePath;
-      return `Command ${command.type} completed and produced ${String(relativePath)}.`;
+      return `Wrote ${String(relativePath)}.`;
+    }
+
+    if (typeof artifact.metadata.content === "string") {
+      return artifact.metadata.content;
+    }
+
+    const stdout = typeof artifact.metadata.stdout === "string" ? artifact.metadata.stdout : "";
+    const stderr = typeof artifact.metadata.stderr === "string" ? artifact.metadata.stderr : "";
+    const output = stdout || stderr;
+    if (output) {
+      return output.slice(0, 4000);
     }
 
     const exitCode = artifact.metadata.exitCode;
-    const summary = typeof artifact.metadata.content === "string"
-      ? ` Result: ${artifact.metadata.content}`
-      : typeof artifact.metadata.stdout === "string"
-        ? ` Output: ${artifact.metadata.stdout}`.slice(0, 240)
-        : "";
-    return `Command ${command.type} completed with exit code ${String(exitCode ?? 0)}.${summary}`;
+    return `Completed with exit code ${String(exitCode ?? 0)}.`;
   }
 
   private mustFindCommand(commandId: string): CommandRecord {
@@ -364,4 +442,8 @@ export class StateStore extends EventEmitter {
     mkdirSync(dirname(this.stateFile), { recursive: true });
     writeFileSync(this.stateFile, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   }
+}
+
+function sanitizePath(value: string): string {
+  return value.trim().replace(/^["']|["']$/g, "");
 }

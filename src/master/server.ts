@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, resolve } from "node:path";
 import { mkdir } from "node:fs/promises";
 import WebSocket, { WebSocketServer, type WebSocket as WebSocketConnection } from "ws";
-import { renderDashboardHtml } from "./dashboard.js";
+import { renderAdminHtml, renderChatHtml } from "./dashboard.js";
 import { StateStore } from "./state-store.js";
 import {
   type AppState,
@@ -123,7 +123,14 @@ export class MasterServer {
     if (request.method === "GET" && url.pathname === "/") {
       response.statusCode = 200;
       response.setHeader("content-type", "text/html; charset=utf-8");
-      response.end(renderDashboardHtml());
+      response.end(renderChatHtml());
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/admin") {
+      response.statusCode = 200;
+      response.setHeader("content-type", "text/html; charset=utf-8");
+      response.end(renderAdminHtml());
       return;
     }
 
