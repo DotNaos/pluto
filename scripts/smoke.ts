@@ -82,7 +82,7 @@ const workspaceRoot = await mkdtemp(join(tmpdir(), "pluto-workspace-"));
 await mkdir(resolve(workspaceRoot, "notes"), { recursive: true });
 await writeFile(resolve(workspaceRoot, "notes/hello.txt"), "hello from pluto\n", "utf8");
 
-const master = spawnLogged("npx", ["tsx", "src/bin/master.ts", "--port", String(port), "--state-file", stateFile], repoRoot);
+const master = spawnLogged("pnpm", ["exec", "tsx", "src/bin/master.ts", "--port", String(port), "--state-file", stateFile], repoRoot);
 let host: ChildProcess | undefined;
 
 try {
@@ -92,8 +92,9 @@ try {
   });
 
   host = spawnLogged(
-    "npx",
+    "pnpm",
     [
+      "exec",
       "tsx",
       "src/bin/host.ts",
       "--master-url",

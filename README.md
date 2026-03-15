@@ -22,19 +22,19 @@ The first implementation slice provides:
 Install dependencies:
 
 ```bash
-npm install
+pnpm install
 ```
 
 Start the master:
 
 ```bash
-npm run master -- --port 4318 --state-file .local/pluto-state.json
+pnpm run master -- --port 4318 --state-file .local/pluto-state.json
 ```
 
 Start a host from a second shell:
 
 ```bash
-npm run host -- --master-url http://127.0.0.1:4318 --host-id laptop --host-name Laptop --workspace repo=$(pwd)
+pnpm run host -- --master-url http://127.0.0.1:4318 --host-id laptop --host-name Laptop --workspace repo=$(pwd)
 ```
 
 Inspect current state:
@@ -59,5 +59,5 @@ curl -X POST http://127.0.0.1:4318/api/messages \
 Run the end-to-end smoke test:
 
 ```bash
-npm run smoke
+pnpm run smoke
 ```
