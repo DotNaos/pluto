@@ -9,6 +9,7 @@ This directory separates stable product direction from iteration delivery scope.
 3. [`vision/target-architecture.md`](/Users/oli/projects/pluto/.dev/vision/target-architecture.md) for the long-term system shape.
 4. `architecture/*` for implementation-facing models and protocols.
 5. `iterations/*/scope.md` for current milestone commitments.
+6. [`architecture/repo-workflow.md`](/Users/oli/projects/pluto/.dev/architecture/repo-workflow.md) for branch, PR, and worktree conventions.
 
 ## Structure
 
@@ -23,6 +24,7 @@ This directory separates stable product direction from iteration delivery scope.
     context-model.md
     protocol-overview.md
     event-model.md
+    repo-workflow.md
   iterations/
     001-foundation/
       scope.md

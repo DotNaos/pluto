@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  repo-sanity:
+    name: repo-sanity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check patch hygiene
+        run: git diff --check
+      - name: Verify repository scaffolding
+        run: |
+          test -f README.md
+          test -f .dev/README.md
+          test -f .dev/vision/vision.md
+          test -f .project-toolkit/config.yaml
+          test -f .project-toolkit/base.code-workspace
+          test -f .github/agents/reviewer.md
+          test -f .github/CODEOWNERS

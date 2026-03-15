@@ -1,0 +1,27 @@
+project:
+  name: pluto
+
+dev:
+  # args: [npm, run, dev]
+  # command: npm run dev
+  # router:
+  #   mode: portless
+  #   name: pluto
+  #
+  # Docker / Compose:
+  # args: [docker, compose, -f, compose.yml, up]
+  # router:
+  #   mode: dockportless
+  #   name: pluto
+
+logs:
+  dir: logs/project-toolkit
+
+workspace:
+  baseFile: .project-toolkit/base.code-workspace
+
+shared:
+  # Share gitignored files from the main repo into generated worktrees.
+  # source/target default to path when omitted.
+  # include/exclude match worktree names.
+  - path: .env
