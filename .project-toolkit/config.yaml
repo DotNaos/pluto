@@ -2,17 +2,10 @@ project:
   name: pluto
 
 dev:
-  # args: [npm, run, dev]
-  # command: npm run dev
-  # router:
-  #   mode: portless
-  #   name: pluto
-  #
-  # Docker / Compose:
-  # args: [docker, compose, -f, compose.yml, up]
-  # router:
-  #   mode: dockportless
-  #   name: pluto
+  args: [pnpm, run, dev]
+  router:
+    mode: portless
+    name: pluto
 
 logs:
   dir: logs/project-toolkit

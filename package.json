@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/bin/master.ts",
     "master": "tsx src/bin/master.ts",
     "host": "tsx src/bin/host.ts",
     "smoke": "tsx scripts/smoke.ts"

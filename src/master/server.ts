@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, resolve } from "node:path";
 import { mkdir } from "node:fs/promises";
 import WebSocket, { WebSocketServer, type WebSocket as WebSocketConnection } from "ws";
+import { renderDashboardHtml } from "./dashboard.js";
 import { StateStore } from "./state-store.js";
 import {
   type AppState,
@@ -38,6 +39,7 @@ function sendEvent(response: ServerResponse, event: DomainEvent): void {
 }
 
 export interface MasterServerOptions {
+  host: string;
   port: number;
   stateFile: string;
 }
@@ -81,7 +83,7 @@ export class MasterServer {
   public async listen(): Promise<void> {
     await mkdir(dirname(resolve(this.options.stateFile)), { recursive: true });
     await new Promise<void>((resolveListen) => {
-      this.server.listen(this.options.port, resolveListen);
+      this.server.listen(this.options.port, this.options.host, resolveListen);
     });
   }
 
@@ -115,6 +117,13 @@ export class MasterServer {
 
     if (request.method === "GET" && url.pathname === "/healthz") {
       sendJson(response, 200, { ok: true });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/") {
+      response.statusCode = 200;
+      response.setHeader("content-type", "text/html; charset=utf-8");
+      response.end(renderDashboardHtml());
       return;
     }
 

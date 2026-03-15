@@ -28,6 +28,8 @@ The master provides:
 - event logging
 - persistence
 
+For Codex-backed assistant flows that Pluto embeds locally, the integration point should be the official `codex app-server`, not the high-level Codex SDK. Pluto needs Codex-native thread history, approvals, streaming item events, and session compatibility, which align with the app-server surface.
+
 ### Pluto hosts
 
 Hosts provide:
