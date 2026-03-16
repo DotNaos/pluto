@@ -84,12 +84,11 @@ select {
   display: inline-block;
   background-image: linear-gradient(
     110deg,
-    currentColor 0%,
-    currentColor 43%,
-    #ffffff 49%,
-    #ffffff 51%,
-    currentColor 57%,
-    currentColor 100%
+    color-mix(in srgb, currentColor 50%, transparent) 0%,
+    color-mix(in srgb, currentColor 50%, transparent) 45%,
+    #ffffff 50%,
+    color-mix(in srgb, currentColor 50%, transparent) 55%,
+    color-mix(in srgb, currentColor 50%, transparent) 100%
   );
   background-size: 300% 100%;
   background-repeat: no-repeat;
