@@ -17,6 +17,7 @@ import rehypeHighlight from "rehype-highlight";
 import {
   ArrowUpRight,
   CheckCircle2,
+  ChevronRight,
   Expand,
   LoaderCircle,
   Mic,
@@ -402,64 +403,89 @@ function commandPreview(command: CommandRecord): string {
   return [commandName, ...args].join(" ").trim();
 }
 
+function getToolSummary(command: CommandRecord) {
+  if (command.type === "process.run") {
+    return command.status === "completed" ? "Ran command" : "Run command";
+  }
+  
+  if (command.type === "workspace.read_file") {
+    const path = typeof command.payload.path === "string" ? command.payload.path : "file";
+    return (
+      <>
+        Read <code className="text-stone-300 font-mono bg-white/[0.05] px-1 py-0.5 rounded text-[0.7rem]">{fileNameFromTarget(path)}</code>
+      </>
+    );
+  }
+  
+  if (command.type === "workspace.write_file") {
+    const path = typeof command.payload.path === "string" ? command.payload.path : "file";
+    return (
+      <>
+        Wrote to <code className="text-stone-300 font-mono bg-white/[0.05] px-1 py-0.5 rounded text-[0.7rem]">{fileNameFromTarget(path)}</code>
+      </>
+    );
+  }
+
+  return `Use tool ${command.type}`;
+}
+
 function ToolCallCard({ command }: { command: CommandRecord }) {
   const output = `${command.stdout ?? ""}${command.stderr ?? ""}`.trim();
-  const statusMeta = command.status === "pending_approval"
-    ? {
-        icon: <ShieldAlert className="h-3.5 w-3.5 text-amber-300" />,
-        label: "Awaiting permission",
-        tone: "text-amber-100",
-        badge: "border-amber-400/16 bg-amber-300/[0.06] text-amber-100",
-      }
-    : command.status === "completed"
-      ? {
-          icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />,
-          label: "Command finished",
-          tone: "text-emerald-100",
-          badge: "border-emerald-400/16 bg-emerald-300/[0.06] text-emerald-100",
-        }
-      : command.status === "failed"
-        ? {
-            icon: <XCircle className="h-3.5 w-3.5 text-red-300" />,
-            label: "Command failed",
-            tone: "text-red-100",
-            badge: "border-red-400/16 bg-red-300/[0.06] text-red-100",
-          }
-        : {
-            icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin text-sky-300" />,
-            label: "Running command",
-            tone: "text-sky-100",
-            badge: "border-sky-400/16 bg-sky-300/[0.06] text-sky-100",
-          };
+  const isPending = command.status === "pending_approval";
+  const isRunning = command.status === "running" || command.status === "queued";
+  const isFailed = command.status === "failed" || command.status === "cancelled";
+  const isSuccess = command.status === "completed";
+
+  const [isOpen, setIsOpen] = useState(!isSuccess);
+
+  useEffect(() => {
+    if (isSuccess && !command.error) {
+      setIsOpen(false);
+    }
+  }, [isSuccess, command.error]);
+
+  const textColorClass = 
+    isFailed ? "text-red-400 group-hover:text-red-300" :
+    isPending ? "text-amber-500/90 group-hover:text-amber-400" :
+    isRunning ? "text-sky-400/90 group-hover:text-sky-300" :
+    "text-stone-400 group-hover:text-stone-300";
 
   return (
-    <div className="grid gap-2.5 border-l border-white/8 pl-4">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <span className="inline-flex items-center gap-2 font-[var(--font-mono)] text-[0.68rem] uppercase tracking-[0.18em] text-stone-500">
-          <TerminalSquare className="h-3.5 w-3.5 text-stone-500" />
-          tool call
-        </span>
-        <span className={cn("inline-flex items-center gap-2 rounded-full border px-2.5 py-1 font-[var(--font-mono)] text-[0.68rem] uppercase tracking-[0.16em]", statusMeta.badge)}>
-          {statusMeta.icon}
-          {statusMeta.label}
-        </span>
-        <span className="inline-flex max-w-full items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 font-[var(--font-mono)] text-[0.92rem] text-stone-100">
-          <span className="truncate">{commandPreview(command)}</span>
-        </span>
+    <div className="tool-audit group">
+      <div 
+        className={cn(
+          "tool-audit__header cursor-pointer hover:bg-white/[0.04] rounded-md py-1 -ml-1.5 px-1.5 transition-colors"
+        )}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-1.5">
+          <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-stone-500 transition-all duration-200 opacity-0 group-hover:opacity-100", isOpen && "rotate-90 opacity-100")} />
+        </div>
+        
+        <div className={cn("tool-audit__summary transition-colors text-[0.8rem]", textColorClass)}>
+          {getToolSummary(command)}
+        </div>
       </div>
-      {output ? (
-        <pre className="overflow-x-auto rounded-[1rem] border border-white/8 bg-black/18 px-4 py-3 font-[var(--font-mono)] text-[0.84rem] leading-6 text-stone-200">
-          <code>{output}</code>
-        </pre>
-      ) : (
-        <div className={cn("inline-flex items-center gap-2 font-[var(--font-mono)] text-[0.72rem] uppercase tracking-[0.18em]", statusMeta.tone)}>
-          {statusMeta.icon}
-          {command.status === "pending_approval" ? "Waiting for approval" : "Waiting for shell output"}
+
+      {isOpen && (
+        <div className="tool-audit__content ml-[21px] mt-1.5 grid gap-1.5">
+          <div className="font-mono text-[0.7rem] text-stone-500 bg-white/[0.02] border border-white/5 rounded-md px-2.5 py-1.5 break-words">
+            <span className="select-none text-stone-600 mr-2">$</span>
+            {commandPreview(command)}
+          </div>
+          {output && (
+            <div className="tool-audit__output mt-0 border-l border-white/10 ml-1">
+              <pre>{output}</pre>
+            </div>
+          )}
+          
+          {command.error && (
+            <div className="tool-audit__error mt-0">
+              {command.error}
+            </div>
+          )}
         </div>
       )}
-      {command.error ? (
-        <p className="font-[var(--font-mono)] text-sm text-red-300">{command.error}</p>
-      ) : null}
     </div>
   );
 }
@@ -478,26 +504,26 @@ function PermissionsBar({
   onReject: () => void;
 }) {
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-2">
       <div className="flex flex-wrap items-center gap-3">
         <Select onValueChange={(value) => onChangeMode(value as AppState["permissionMode"])} value={permissionMode}>
-          <SelectTrigger aria-label="Permission mode" className="w-[220px] justify-start gap-2">
-            <span className="flex min-w-0 flex-1 items-center gap-2">
-              {permissionMode === "full-access" ? <ShieldAlert className="h-4 w-4 shrink-0 text-amber-300" /> : <ShieldCheck className="h-4 w-4 shrink-0 text-stone-400" />}
-              <span className="truncate">{permissionMode === "full-access" ? "Full access" : "Default permissions"}</span>
+          <SelectTrigger aria-label="Permission mode" className="w-fit min-w-[200px] h-8 justify-between gap-3 rounded-full border border-white/10 bg-[#2a2a2a] px-4 py-1.5 text-xs font-medium text-stone-300 hover:bg-[#333333] hover:text-stone-200 transition-colors shadow-none ring-0 focus:ring-0 focus:ring-offset-0">
+            <span className="flex items-center gap-2">
+              {permissionMode === "full-access" ? <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-amber-400" /> : <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-stone-400" />}
+              <span>{permissionMode === "full-access" ? "Full Access" : "Default Permissions"}</span>
             </span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="default">
               <span className="inline-flex w-full items-center gap-2 pr-6">
-                <ShieldCheck className="h-4 w-4 shrink-0 text-stone-400" />
-                <span>Default permissions</span>
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-stone-400" />
+                <span className="text-xs">Default permissions</span>
               </span>
             </SelectItem>
             <SelectItem value="full-access">
               <span className="inline-flex w-full items-center gap-2 pr-6">
-                <ShieldAlert className="h-4 w-4 shrink-0 text-amber-300" />
-                <span>Full access</span>
+                <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                <span className="text-xs">Full access</span>
               </span>
             </SelectItem>
           </SelectContent>
@@ -505,23 +531,21 @@ function PermissionsBar({
       </div>
 
       {pendingCommand ? (
-        <div className="rounded-[1.2rem] border border-amber-400/18 bg-transparent px-0 py-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex h-6 items-center gap-2 rounded-full border border-amber-300/18 bg-amber-200/[0.08] px-2.5 font-[var(--font-mono)] text-[0.68rem] uppercase tracking-[0.18em] text-amber-100">
-              <ShieldAlert className="h-3.5 w-3.5" />
-              Allow command?
-            </span>
-            <span className="rounded-full border border-white/8 bg-black/20 px-3 py-1.5 font-[var(--font-mono)] text-sm text-stone-100">
-              {commandPreview(pendingCommand)}
-            </span>
-            <div className="ml-auto flex items-center gap-2">
-              <Button size="sm" variant="secondary" onClick={onReject}>
-                Deny
-              </Button>
-              <Button size="sm" onClick={onApprove}>
-                Allow once
-              </Button>
-            </div>
+        <div className="flex items-center gap-3 rounded-md bg-[#2a2a2a] border border-amber-500/20 px-3 py-1.5 shadow-sm">
+          <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-amber-500/80" />
+          
+          <div className="min-w-0 flex-1 truncate font-[var(--font-mono)] text-[0.75rem] text-amber-200/90">
+            <span className="mr-2 select-none text-amber-500/50">$</span>
+            {commandPreview(pendingCommand)}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button className="text-[0.65rem] font-bold uppercase tracking-widest text-stone-400 hover:text-stone-200 transition-colors" onClick={onReject} type="button">
+              Deny
+            </button>
+            <button className="text-[0.65rem] font-bold uppercase tracking-widest text-amber-500 hover:text-amber-400 transition-colors" onClick={onApprove} type="button">
+              Allow
+            </button>
           </div>
         </div>
       ) : null}
@@ -954,102 +978,109 @@ export function App() {
           ) : (
             <div className="grid gap-6 px-0 pb-40 pt-2">
               {messageList.map((message) => (
-                <article key={message.id} className={cn("grid gap-2", message.role === "user" && "justify-items-end")}>
-                  {message.role === "assistant" ? (
-                    shouldHideAssistantMessage(message) ? null : (
-                    <div className="max-w-[760px] pl-2">
-                      {message.runId
-                      && message.text.startsWith("Running a shell command")
-                      && runCommandMap.get(message.runId)?.at(-1)?.type === "process.run" ? (
-                        <ToolCallCard command={runCommandMap.get(message.runId)!.at(-1)!} />
-                      ) : message.text.trim() ? (
-                        <MarkdownMessage onPreview={setViewer} text={message.text} />
-                      ) : (
-                        <ThinkingVisor />
-                      )}
-                    </div>
-                    )
-                  ) : (
-                    <div className="grid w-full max-w-[760px] gap-2 justify-items-end">
-                      <span className="grid h-9 w-9 place-items-center rounded-full border border-[#4b5563]/40 bg-[#2c3442] text-[#d7deeb] shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
-                        <UserRound className="h-4.5 w-4.5" />
-                      </span>
-                      <div className="w-full rounded-[2rem] border border-[#4f6184]/28 bg-[linear-gradient(180deg,#2d3747_0%,#253040_100%)] px-5 py-4 text-[#eef3fb] shadow-[0_24px_60px_rgba(0,0,0,0.18)]">
-                        <p className="text-[1.03rem] leading-8">{message.text}</p>
+                <div key={message.id} className="grid gap-2">
+                  <article className={cn("grid gap-2", message.role === "user" && "justify-items-end")}>
+                    {message.role === "assistant" ? (
+                      shouldHideAssistantMessage(message) ? null : (
+                      <div className="max-w-[760px] pl-2">
+                        {message.runId
+                        && message.text.startsWith("Running a shell command")
+                        && runCommandMap.get(message.runId)?.at(-1)?.type === "process.run" ? (
+                          <ToolCallCard command={runCommandMap.get(message.runId)!.at(-1)!} />
+                        ) : message.text.trim() ? (
+                          <MarkdownMessage onPreview={setViewer} text={message.text} />
+                        ) : (
+                          <ThinkingVisor />
+                        )}
                       </div>
-                      {(() => {
-                        const run = runByMessageId.get(message.id);
-                        const commands = run ? runCommandMap.get(run.id) : undefined;
-                        return commands?.length
-                          ? commands
-                              .filter((command) => command.type === "process.run")
-                              .map((command) => <ToolCallCard command={command} key={command.id} />)
-                          : null;
-                      })()}
-                    </div>
-                  )}
-                </article>
+                      )
+                    ) : (
+                      <div className="grid w-full max-w-[760px] gap-2 justify-items-end">
+                        <span className="grid h-9 w-9 place-items-center rounded-full border border-[#4b5563]/40 bg-[#2c3442] text-[#d7deeb] shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
+                          <UserRound className="h-4.5 w-4.5" />
+                        </span>
+                        <div className="w-full rounded-[2rem] border border-[#4f6184]/28 bg-[linear-gradient(180deg,#2d3747_0%,#253040_100%)] px-5 py-4 text-[#eef3fb] shadow-[0_24px_60px_rgba(0,0,0,0.18)]">
+                          <p className="text-[1.03rem] leading-8">{message.text}</p>
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                  
+                  {message.role === "user" && (() => {
+                    const run = runByMessageId.get(message.id);
+                    const commands = run ? runCommandMap.get(run.id) : undefined;
+                    const runCommands = commands?.filter((command) => command.type === "process.run");
+                    return runCommands?.length ? (
+                      <div className="max-w-[760px] pl-2 grid gap-1 text-left w-full mt-1">
+                        {runCommands.map((command) => (
+                          <ToolCallCard command={command} key={command.id} />
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
               ))}
             </div>
           )}
         </section>
 
-        <footer className="sticky bottom-0 z-20 mx-auto w-full max-w-[760px] pb-3 pt-4">
-          <div>
-          <form className="grid gap-2.5" onSubmit={(event) => void handleSubmit(event)}>
-            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-full border border-white/8 bg-[#303030]/96 px-[12px] py-[12px] shadow-[0_4px_80px_rgba(0,0,0,0.05)] backdrop-blur-xl">
-              <button
-                aria-label="Attachments"
-                className="grid h-9 w-9 place-items-center rounded-full border border-white/6 bg-white/[0.03] text-stone-400 transition hover:text-stone-200"
-                onClick={handleLeadingAction}
-                type="button"
-              >
-                <Plus className="h-4.5 w-4.5" />
-              </button>
-              <textarea
-                className="max-h-56 min-h-6 w-full resize-none bg-transparent px-0 py-0 text-[1.02rem] leading-7 text-stone-100 outline-none placeholder:text-stone-500"
-                onChange={(event) => setComposer(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void handleSubmit();
-                  }
-                }}
-                placeholder="Ask Pluto"
-                ref={textareaRef}
-                rows={1}
-                value={composer}
-              />
-              <div className="flex items-center gap-2">
+        <footer className="fixed bottom-0 left-0 right-0 z-20 w-full bg-[#111111]">
+          <div className="absolute inset-0 -top-12 bottom-full bg-gradient-to-t from-[#111111] to-transparent pointer-events-none" />
+          <div className="relative mx-auto w-full max-w-[760px] px-4 sm:px-0 pb-6 pt-2">
+            <form className="grid gap-4" onSubmit={(event) => void handleSubmit(event)}>
+              <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-full border border-white/8 bg-[#303030]/96 px-[12px] py-[12px] shadow-[0_4px_80px_rgba(0,0,0,0.05)] backdrop-blur-xl">
                 <button
-                  aria-label={composer.trim().length > 0 ? "Clear draft" : "Voice input"}
-                  className="grid h-9 w-9 place-items-center rounded-full border border-white/8 bg-white/[0.03] text-stone-400 transition hover:text-stone-200"
-                  onClick={handleMicAction}
+                  aria-label="Attachments"
+                  className="grid h-9 w-9 place-items-center rounded-full border border-white/6 bg-white/[0.03] text-stone-400 transition hover:text-stone-200"
+                  onClick={handleLeadingAction}
                   type="button"
                 >
-                  <Mic className="h-4.5 w-4.5" />
+                  <Plus className="h-4.5 w-4.5" />
                 </button>
-                <Button className="h-9 w-9 rounded-full bg-[#0169cc] text-white hover:bg-[#0b74da]" size="icon" type="submit">
-                  <ArrowUpRight className="h-4.5 w-4.5" />
-                </Button>
+                <textarea
+                  className="max-h-56 min-h-6 w-full resize-none bg-transparent px-0 py-0 text-[1.02rem] leading-7 text-stone-100 outline-none placeholder:text-stone-500"
+                  onChange={(event) => setComposer(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      void handleSubmit();
+                    }
+                  }}
+                  placeholder="Ask Pluto"
+                  ref={textareaRef}
+                  rows={1}
+                  value={composer}
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    aria-label={composer.trim().length > 0 ? "Clear draft" : "Voice input"}
+                    className="grid h-9 w-9 place-items-center rounded-full border border-white/8 bg-white/[0.03] text-stone-400 transition hover:text-stone-200"
+                    onClick={handleMicAction}
+                    type="button"
+                  >
+                    <Mic className="h-4.5 w-4.5" />
+                  </button>
+                  <Button className="h-9 w-9 rounded-full bg-[#0169cc] text-white hover:bg-[#0b74da]" size="icon" type="submit">
+                    <ArrowUpRight className="h-4.5 w-4.5" />
+                  </Button>
+                </div>
               </div>
-            </div>
-            {status || !accountConnected ? (
-              <div className={cn("flex min-h-4 items-center justify-center gap-2 text-center text-xs", status ? "text-stone-300" : "text-stone-500")}>
-                <Sparkles className="h-3.5 w-3.5 opacity-70" />
-                {status || "Open Admin to connect ChatGPT."}
-              </div>
-            ) : null}
-            {state ? (
-              <PermissionsBar
-                onApprove={() => pendingApprovalCommand && void handleApproveCommand(pendingApprovalCommand.id)}
-                onChangeMode={(mode) => void handlePermissionModeChange(mode)}
-                onReject={() => pendingApprovalCommand && void handleRejectCommand(pendingApprovalCommand.id)}
-                pendingCommand={pendingApprovalCommand}
-                permissionMode={state.permissionMode}
-              />
-            ) : null}
-          </form>
+              {status || !accountConnected ? (
+                <div className={cn("flex min-h-4 items-center justify-center gap-2 text-center text-xs", status ? "text-stone-300" : "text-stone-500")}>
+                  <Sparkles className="h-3.5 w-3.5 opacity-70" />
+                  {status || "Open Admin to connect ChatGPT."}
+                </div>
+              ) : null}
+              {state ? (
+                <PermissionsBar
+                  onApprove={() => pendingApprovalCommand && void handleApproveCommand(pendingApprovalCommand.id)}
+                  onChangeMode={(mode) => void handlePermissionModeChange(mode)}
+                  onReject={() => pendingApprovalCommand && void handleRejectCommand(pendingApprovalCommand.id)}
+                  pendingCommand={pendingApprovalCommand}
+                  permissionMode={state.permissionMode}
+                />
+              ) : null}
+            </form>
           </div>
         </footer>
       </main>
