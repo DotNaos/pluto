@@ -13,17 +13,14 @@ export function renderAdminHtml(): string {
   <body>
     <main>
       <section class="shell">
-        <header class="hero">
-          <div class="hero-copy">
+        <header class="shell-header">
+          <div class="back-link-wrapper">
             <a class="back-link" href="/">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m15 5-7 7 7 7"></path>
-                <path d="M8 12h12"></path>
+              <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14">
+                <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"></path>
               </svg>
               <span>Chat</span>
             </a>
-            <h1>Pluto Admin</h1>
-            <p>Connect Pluto to Codex, attach it to the right session, then inspect runtime health only when needed.</p>
           </div>
           <div class="hero-meta">
             <span class="meta-pill">Iteration 001</span>
@@ -31,14 +28,12 @@ export function renderAdminHtml(): string {
           </div>
         </header>
 
+        <div class="hero-copy">
+          <h1>Pluto Admin</h1>
+          <p>Connect Pluto to Codex, attach it to the right session, then inspect runtime health only when needed.</p>
+        </div>
+
         <section class="section">
-          <header class="section-header">
-            <div>
-              <strong>Current Pluto Runtime</strong>
-              <p>Auth, model, and the Codex thread Pluto is currently using.</p>
-            </div>
-            <small id="auth-updated">runtime pending</small>
-          </header>
           <div class="runtime-layout">
             <div class="stack">
               <section class="subsection">
@@ -52,10 +47,10 @@ export function renderAdminHtml(): string {
                   <button id="cancel-login-button" type="button" hidden>Cancel Login</button>
                   <button id="logout-button" type="button" hidden>Logout</button>
                 </div>
-                <span class="notice" id="auth-notice"></span>
+                <span class="notice" id="auth-notice" style="display:block;margin-top:8px;"></span>
               </section>
 
-              <section class="subsection">
+              <section class="subsection" style="margin-top: 24px;">
                 <div class="subsection-header">
                   <strong>Attached Codex Thread</strong>
                   <button id="reset-thread-button" type="button">New Pluto Thread</button>
@@ -112,7 +107,6 @@ export function renderAdminHtml(): string {
               </div>
               <div class="list" id="hosts"></div>
             </section>
-
             <section class="column">
               <div class="column-header">
                 <strong>Recent Commands</strong>
@@ -120,7 +114,6 @@ export function renderAdminHtml(): string {
               </div>
               <div class="list" id="commands"></div>
             </section>
-
             <section class="column">
               <div class="column-header">
                 <strong>Artifacts</strong>
@@ -128,7 +121,6 @@ export function renderAdminHtml(): string {
               </div>
               <div class="list" id="artifacts"></div>
             </section>
-
             <section class="column">
               <div class="column-header">
                 <strong>Events</strong>
@@ -140,8 +132,8 @@ export function renderAdminHtml(): string {
         </section>
       </section>
     </main>
-
     <script type="module">${adminScript}</script>
   </body>
 </html>`;
 }
+
