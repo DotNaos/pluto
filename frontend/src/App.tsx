@@ -951,7 +951,7 @@ export function App() {
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#101827]">
-      <header className="z-20 flex min-h-14 items-center justify-between gap-4 bg-[#101827]/80 px-4 py-3 backdrop-blur-md border-b border-white/5">
+      <header className="z-20 flex min-h-14 items-center justify-between gap-4 bg-[#101827]/80 px-4 py-3 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-[760px] items-center justify-between gap-4">
           <div className="min-w-[138px]" />
           <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.18)]">
@@ -1050,7 +1050,7 @@ export function App() {
         </section>
       </main>
 
-      <footer className="z-20 w-full bg-[#101827] border-t border-white/5">
+      <footer className="z-20 w-full bg-[#101827]">
         <div className="relative mx-auto w-full max-w-[760px] px-4 sm:px-0 pb-6 pt-4">
           <form className="grid gap-4" onSubmit={(event) => void handleSubmit(event)}>
             <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-full border border-[#1C2231] bg-[#141C2B]/96 px-[12px] py-[12px] shadow-[0_4px_80px_rgba(0,0,0,0.05)] backdrop-blur-xl">
