@@ -20,7 +20,7 @@
 
 body {
   margin: 0;
-  height: 100vh;
+  height: 100dvh;
   background: #101827;
   color: #f2ede3;
   font-family: var(--font-body);
@@ -28,7 +28,7 @@ body {
 }
 
 #root {
-  height: 100vh;
+  height: 100dvh;
 }
 
 * {

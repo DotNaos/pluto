@@ -988,7 +988,7 @@ export function App() {
       <main ref={chatContainerRef} className="scrollbar-thin mx-auto flex w-full max-w-[760px] flex-1 flex-col overflow-y-auto px-4">
         <section className="flex-1 py-4">
           {!hasMessages ? (
-            <section className="grid min-h-full place-items-center px-4 pb-[10vh] text-center">
+            <section className="grid min-h-full place-items-center px-4 pb-[10dvh] text-center">
               <div className="grid max-w-[34rem] gap-5">
                 <div className="mx-auto grid h-[72px] w-[72px] place-items-center rounded-full border border-white/10 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.1),transparent_34%),radial-gradient(circle_at_70%_70%,rgba(255,255,255,0.06),transparent_28%),rgba(255,255,255,0.02)] shadow-[0_20px_48px_rgba(0,0,0,0.22)]">
                   <Orbit className="h-7 w-7 text-stone-100" />
@@ -1110,7 +1110,7 @@ export function App() {
       </footer>
 
       <Dialog onOpenChange={(open) => !open && setViewer(null)} open={Boolean(viewer)}>
-        <DialogContent className="h-[min(84vh,900px)] p-0">
+        <DialogContent className="h-[min(84dvh,900px)] p-0">
           <DialogHeader className="pr-16">
             <span className="inline-flex h-6 w-fit items-center rounded-full border border-white/10 bg-white/[0.04] px-2.5 font-[var(--font-mono)] text-[0.68rem] uppercase tracking-[0.18em] text-stone-300">
               {viewer?.kind}
@@ -1122,13 +1122,13 @@ export function App() {
             {viewer?.kind === "image" ? (
               <img
                 alt={viewer.title}
-                className="block h-full max-h-[calc(84vh-8rem)] w-full rounded-[1.6rem] bg-[#111] object-contain"
+                className="block h-full max-h-[calc(84dvh-8rem)] w-full rounded-[1.6rem] bg-[#111] object-contain"
                 src={viewer.src}
               />
             ) : null}
             {viewer?.kind === "pdf" || viewer?.kind === "file" ? (
               <iframe
-                className="block h-[calc(84vh-8rem)] w-full rounded-[1.6rem] bg-[#111]"
+                className="block h-[calc(84dvh-8rem)] w-full rounded-[1.6rem] bg-[#111]"
                 src={viewer?.src}
                 title={viewer?.title}
               />
