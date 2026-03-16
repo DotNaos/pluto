@@ -28,7 +28,6 @@ import {
   ShieldCheck,
   Sparkles,
   TerminalSquare,
-  UserRound,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -436,56 +435,81 @@ function ToolCallCard({ command }: { command: CommandRecord }) {
   const isFailed = command.status === "failed" || command.status === "cancelled";
   const isSuccess = command.status === "completed";
 
-  const [isOpen, setIsOpen] = useState(!isSuccess);
-
-  useEffect(() => {
-    if (isSuccess && !command.error) {
-      setIsOpen(false);
-    }
-  }, [isSuccess, command.error]);
+  const [isOpen, setIsOpen] = useState(false);
 
   const textColorClass = 
     isFailed ? "text-red-400 group-hover:text-red-300" :
     isPending ? "text-amber-500/90 group-hover:text-amber-400" :
     isRunning ? "text-sky-400/90 group-hover:text-sky-300" :
-    "text-stone-400 group-hover:text-stone-300";
+    "text-stone-400 group-hover:text-stone-200";
 
   return (
     <div className="tool-audit group">
       <div 
         className={cn(
-          "tool-audit__header cursor-pointer hover:bg-white/[0.04] rounded-md py-1 -ml-1.5 px-1.5 transition-colors"
+          "tool-audit__header cursor-pointer py-0.5 transition-colors w-fit"
         )}
         onClick={() => setIsOpen(!isOpen)}
       >
-        <div className="flex items-center gap-1.5">
-          <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-stone-500 transition-all duration-200 opacity-0 group-hover:opacity-100", isOpen && "rotate-90 opacity-100")} />
-        </div>
-        
         <div className={cn("tool-audit__summary transition-colors text-[0.8rem]", textColorClass)}>
           {getToolSummary(command)}
         </div>
+        
+        <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-stone-500 transition-transform duration-300 opacity-0 group-hover:opacity-100", isOpen && "rotate-90 opacity-100")} />
       </div>
 
-      {isOpen && (
-        <div className="tool-audit__content ml-[21px] mt-1.5 grid gap-1.5">
-          <div className="font-mono text-[0.7rem] text-stone-500 bg-white/[0.02] border border-white/5 rounded-md px-2.5 py-1.5 break-words">
-            <span className="select-none text-stone-600 mr-2">$</span>
-            {commandPreview(command)}
+      <div className={cn("grid transition-all duration-300 ease-in-out", isOpen ? "grid-rows-[1fr] opacity-100 mt-2" : "grid-rows-[0fr] opacity-0 mt-0")}>
+        <div className="overflow-hidden">
+          <div className="flex h-[320px] flex-col overflow-hidden rounded-[1.25rem] border border-[#1C2231] bg-[#141C2B]/80 shadow-[0_12px_40px_rgba(0,0,0,0.12)]">
+            <div className="flex items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-2.5">
+              <TerminalSquare className="h-3.5 w-3.5 text-stone-500" />
+              <span className="font-mono text-[0.65rem] font-semibold uppercase tracking-wider text-stone-400">
+                {command.type === "process.run" ? "shell" : command.type}
+              </span>
+            </div>
+            
+            <div className="border-b border-white/5 bg-white/[0.01] px-4 py-3 font-mono text-[0.75rem] text-stone-300 break-words">
+              <span className="mr-2 select-none text-stone-600">$</span>
+              {commandPreview(command)}
+            </div>
+            
+            <div className="scrollbar-thin flex-1 overflow-y-auto p-4">
+              {(output || command.error) && (
+                <div className="font-mono text-[0.7rem] leading-relaxed text-stone-400/80 whitespace-pre-wrap">
+                  {output}
+                  {command.error && (
+                    <div className="mt-2 text-red-400/80">{command.error}</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-white/5 bg-white/[0.02] px-4 py-2">
+              {isFailed ? (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-red-400">
+                  <XCircle className="h-3.5 w-3.5" />
+                  Failed
+                </span>
+              ) : isRunning ? (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-sky-400">
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  Running
+                </span>
+              ) : isPending ? (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-amber-500">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  Pending
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-stone-400">
+                  <CheckCircle2 className="h-3.5 w-3.5 opacity-50" />
+                  Success
+                </span>
+              )}
+            </div>
           </div>
-          {output && (
-            <div className="tool-audit__output mt-0 border-l border-white/10 ml-1">
-              <pre>{output}</pre>
-            </div>
-          )}
-          
-          {command.error && (
-            <div className="tool-audit__error mt-0">
-              {command.error}
-            </div>
-          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -507,11 +531,9 @@ function PermissionsBar({
     <div className="grid gap-2">
       <div className="flex flex-wrap items-center gap-3">
         <Select onValueChange={(value) => onChangeMode(value as AppState["permissionMode"])} value={permissionMode}>
-          <SelectTrigger aria-label="Permission mode" className="w-fit min-w-[200px] h-8 justify-between gap-3 rounded-full border border-white/10 bg-[#2a2a2a] px-4 py-1.5 text-xs font-medium text-stone-300 hover:bg-[#333333] hover:text-stone-200 transition-colors shadow-none ring-0 focus:ring-0 focus:ring-offset-0">
-            <span className="flex items-center gap-2">
-              {permissionMode === "full-access" ? <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-amber-400" /> : <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-stone-400" />}
-              <span>{permissionMode === "full-access" ? "Full Access" : "Default Permissions"}</span>
-            </span>
+          <SelectTrigger aria-label="Permission mode" className={cn("w-fit h-8 justify-start gap-1.5 rounded-full border-transparent bg-transparent px-4 py-1.5 text-xs font-medium transition-colors shadow-none ring-0 focus:ring-0 focus:ring-offset-0", permissionMode === "full-access" ? "text-amber-500 hover:bg-amber-500/10 hover:text-amber-400" : "text-stone-400 hover:bg-white/5 hover:text-stone-200")}>
+            {permissionMode === "full-access" ? <ShieldAlert className="h-3.5 w-3.5 shrink-0" /> : <ShieldCheck className="h-3.5 w-3.5 shrink-0" />}
+            <span>{permissionMode === "full-access" ? "Full Access" : "Default Permissions"}</span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="default">
@@ -924,21 +946,20 @@ export function App() {
 
   return (
     <>
-      <main className="mx-auto flex min-h-screen w-full max-w-[920px] flex-col gap-4 px-4 py-[18px]">
-        <header className="flex min-h-14 items-center justify-between gap-4">
+      <header className="fixed top-0 left-0 right-0 z-20 flex min-h-14 items-center justify-between gap-4 bg-[#101827]/80 px-4 py-3 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-[760px] items-center justify-between gap-4">
           <div className="min-w-[138px]" />
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 shadow-[0_14px_40px_rgba(0,0,0,0.18)]">
-            <div className="grid h-9 w-9 place-items-center rounded-full border border-white/6 bg-white/[0.05]">
-              <Orbit className="h-4.5 w-4.5 text-stone-200" />
+          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.18)]">
+            <div className="grid h-7 w-7 place-items-center rounded-full border border-white/6 bg-white/[0.05]">
+              <Orbit className="h-3.5 w-3.5 text-stone-200" />
             </div>
-            <div className="grid gap-0.5">
-              <strong className="font-[var(--font-mono)] text-sm font-semibold tracking-[0.14em] text-stone-200 lowercase">pluto</strong>
-              <span className="font-[var(--font-mono)] text-[0.72rem] text-stone-500">single conversation</span>
+            <div className="grid gap-0">
+              <strong className="font-[var(--font-mono)] text-xs font-semibold tracking-[0.14em] text-stone-200 lowercase">pluto</strong>
             </div>
           </div>
           <div className="flex min-w-[138px] items-center justify-end gap-2">
             <Select onValueChange={(value) => void handleModelChange(value)} value={runtime?.model ?? undefined}>
-              <SelectTrigger aria-label="Select model">
+              <SelectTrigger aria-label="Select model" className="h-8 border-white/10 bg-white/5">
                 <SelectValue placeholder="model" />
               </SelectTrigger>
               <SelectContent>
@@ -949,15 +970,17 @@ export function App() {
                 ))}
               </SelectContent>
             </Select>
-            <Button asChild size="sm" variant="secondary">
+            <Button asChild size="sm" variant="secondary" className="h-8">
               <a href="/admin">
-                <PanelsTopLeft className="h-4 w-4" />
+                <PanelsTopLeft className="h-3.5 w-3.5" />
                 Admin
               </a>
             </Button>
           </div>
-        </header>
-
+        </div>
+      </header>
+      
+      <main className="mx-auto flex min-h-screen w-full max-w-[760px] flex-col gap-4 px-4 pt-[80px]">
         <section className="flex-1">
           {!hasMessages ? (
             <section className="grid min-h-[calc(100vh-15rem)] place-items-center px-4 pb-[14vh] text-center">
@@ -978,11 +1001,11 @@ export function App() {
           ) : (
             <div className="grid gap-6 px-0 pb-40 pt-2">
               {messageList.map((message) => (
-                <div key={message.id} className="grid gap-2">
+                <div key={message.id} className="grid gap-1.5">
                   <article className={cn("grid gap-2", message.role === "user" && "justify-items-end")}>
                     {message.role === "assistant" ? (
                       shouldHideAssistantMessage(message) ? null : (
-                      <div className="max-w-[760px] pl-2">
+                      <div className="w-full pl-2">
                         {message.runId
                         && message.text.startsWith("Running a shell command")
                         && runCommandMap.get(message.runId)?.at(-1)?.type === "process.run" ? (
@@ -995,12 +1018,9 @@ export function App() {
                       </div>
                       )
                     ) : (
-                      <div className="grid w-full max-w-[760px] gap-2 justify-items-end">
-                        <span className="grid h-9 w-9 place-items-center rounded-full border border-[#4b5563]/40 bg-[#2c3442] text-[#d7deeb] shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
-                          <UserRound className="h-4.5 w-4.5" />
-                        </span>
-                        <div className="w-full rounded-[2rem] border border-[#4f6184]/28 bg-[linear-gradient(180deg,#2d3747_0%,#253040_100%)] px-5 py-4 text-[#eef3fb] shadow-[0_24px_60px_rgba(0,0,0,0.18)]">
-                          <p className="text-[1.03rem] leading-8">{message.text}</p>
+                      <div className="flex w-full justify-end">
+                        <div className="w-fit max-w-[90%] rounded-[1.5rem] border border-[#1C2231] bg-[#1A2231] px-4 py-2.5 text-[#eef3fb] shadow-[0_12px_40px_rgba(0,0,0,0.12)]">
+                          <p className="text-[1.03rem] leading-relaxed whitespace-pre-wrap break-words">{message.text}</p>
                         </div>
                       </div>
                     )}
@@ -1011,7 +1031,7 @@ export function App() {
                     const commands = run ? runCommandMap.get(run.id) : undefined;
                     const runCommands = commands?.filter((command) => command.type === "process.run");
                     return runCommands?.length ? (
-                      <div className="max-w-[760px] pl-2 grid gap-1 text-left w-full mt-1">
+                      <div className="pl-2 grid gap-0.5 text-left w-full -mt-0.5">
                         {runCommands.map((command) => (
                           <ToolCallCard command={command} key={command.id} />
                         ))}
@@ -1024,14 +1044,14 @@ export function App() {
           )}
         </section>
 
-        <footer className="fixed bottom-0 left-0 right-0 z-20 w-full bg-[#111111]">
-          <div className="absolute inset-0 -top-12 bottom-full bg-gradient-to-t from-[#111111] to-transparent pointer-events-none" />
+        <footer className="fixed bottom-0 left-0 right-0 z-20 w-full bg-[#101827]">
+          <div className="absolute inset-0 -top-12 bottom-full bg-gradient-to-t from-[#101827] to-transparent pointer-events-none" />
           <div className="relative mx-auto w-full max-w-[760px] px-4 sm:px-0 pb-6 pt-2">
             <form className="grid gap-4" onSubmit={(event) => void handleSubmit(event)}>
-              <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-full border border-white/8 bg-[#303030]/96 px-[12px] py-[12px] shadow-[0_4px_80px_rgba(0,0,0,0.05)] backdrop-blur-xl">
+              <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-full border border-[#1C2231] bg-[#141C2B]/96 px-[12px] py-[12px] shadow-[0_4px_80px_rgba(0,0,0,0.05)] backdrop-blur-xl">
                 <button
                   aria-label="Attachments"
-                  className="grid h-9 w-9 place-items-center rounded-full border border-white/6 bg-white/[0.03] text-stone-400 transition hover:text-stone-200"
+                  className="grid h-9 w-9 place-items-center rounded-full text-stone-400 transition-colors hover:bg-white/5 hover:text-stone-200"
                   onClick={handleLeadingAction}
                   type="button"
                 >
@@ -1054,7 +1074,7 @@ export function App() {
                 <div className="flex items-center gap-2">
                   <button
                     aria-label={composer.trim().length > 0 ? "Clear draft" : "Voice input"}
-                    className="grid h-9 w-9 place-items-center rounded-full border border-white/8 bg-white/[0.03] text-stone-400 transition hover:text-stone-200"
+                    className="grid h-9 w-9 place-items-center rounded-full text-stone-400 transition-colors hover:bg-white/5 hover:text-stone-200"
                     onClick={handleMicAction}
                     type="button"
                   >
