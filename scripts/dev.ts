@@ -83,7 +83,7 @@ async function main(): Promise<void> {
   api:    http://${publicHost}:${masterPort}
   host:   ${hostFullAccess ? "full-access" : "workspace-scoped"}`);
 
-  startProcess("master", "pnpm", ["exec", "tsx", "src/bin/master.ts", "--host", publicHost, "--port", String(masterPort)]);
+  startProcess("master", "pnpm", ["exec", "tsx", "watch", "src/bin/master.ts", "--host", publicHost, "--port", String(masterPort)]);
 
   await waitForMaster(`http://${publicHost}:${masterPort}/healthz`);
 
@@ -93,6 +93,7 @@ async function main(): Promise<void> {
     [
       "exec",
       "tsx",
+      "watch",
       "src/bin/host.ts",
       "--master-url",
       `ws://${publicHost}:${masterPort}`,
