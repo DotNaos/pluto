@@ -583,6 +583,7 @@ export function App() {
   const [status, setStatus] = useState("");
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
   const messageList = useMemo(() => state?.messages ?? [], [state?.messages]);
   const latestMessageSignature = useMemo(() => {
     const lastMessage = messageList[messageList.length - 1];
@@ -769,8 +770,12 @@ export function App() {
   }, [composer]);
 
   useEffect(() => {
+    const node = chatContainerRef.current;
+    if (!node) {
+      return;
+    }
     window.requestAnimationFrame(() => {
-      window.scrollTo({ top: document.documentElement.scrollHeight });
+      node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
     });
   }, [latestMessageSignature]);
 
@@ -945,8 +950,8 @@ export function App() {
   }
 
   return (
-    <>
-      <header className="fixed top-0 left-0 right-0 z-20 flex min-h-14 items-center justify-between gap-4 bg-[#101827]/80 px-4 py-3 backdrop-blur-md">
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-[#101827]">
+      <header className="z-20 flex min-h-14 items-center justify-between gap-4 bg-[#101827]/80 px-4 py-3 backdrop-blur-md border-b border-white/5">
         <div className="mx-auto flex w-full max-w-[760px] items-center justify-between gap-4">
           <div className="min-w-[138px]" />
           <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.18)]">
@@ -980,10 +985,10 @@ export function App() {
         </div>
       </header>
       
-      <main className="mx-auto flex min-h-screen w-full max-w-[760px] flex-col gap-4 px-4 pt-[80px]">
-        <section className="flex-1">
+      <main ref={chatContainerRef} className="scrollbar-thin mx-auto flex w-full max-w-[760px] flex-1 flex-col overflow-y-auto px-4">
+        <section className="flex-1 py-4">
           {!hasMessages ? (
-            <section className="grid min-h-[calc(100vh-15rem)] place-items-center px-4 pb-[14vh] text-center">
+            <section className="grid min-h-full place-items-center px-4 pb-[10vh] text-center">
               <div className="grid max-w-[34rem] gap-5">
                 <div className="mx-auto grid h-[72px] w-[72px] place-items-center rounded-full border border-white/10 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.1),transparent_34%),radial-gradient(circle_at_70%_70%,rgba(255,255,255,0.06),transparent_28%),rgba(255,255,255,0.02)] shadow-[0_20px_48px_rgba(0,0,0,0.22)]">
                   <Orbit className="h-7 w-7 text-stone-100" />
@@ -999,7 +1004,7 @@ export function App() {
               </div>
             </section>
           ) : (
-            <div className="grid gap-6 px-0 pb-40 pt-2">
+            <div className="grid gap-6 px-0 pb-12 pt-2">
               {messageList.map((message) => (
                 <div key={message.id} className="grid gap-1.5">
                   <article className={cn("grid gap-2", message.role === "user" && "justify-items-end")}>
@@ -1043,67 +1048,66 @@ export function App() {
             </div>
           )}
         </section>
+      </main>
 
-        <footer className="fixed bottom-0 left-0 right-0 z-20 w-full bg-[#101827]">
-          <div className="absolute inset-0 -top-12 bottom-full bg-gradient-to-t from-[#101827] to-transparent pointer-events-none" />
-          <div className="relative mx-auto w-full max-w-[760px] px-4 sm:px-0 pb-6 pt-2">
-            <form className="grid gap-4" onSubmit={(event) => void handleSubmit(event)}>
-              <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-full border border-[#1C2231] bg-[#141C2B]/96 px-[12px] py-[12px] shadow-[0_4px_80px_rgba(0,0,0,0.05)] backdrop-blur-xl">
+      <footer className="z-20 w-full bg-[#101827] border-t border-white/5">
+        <div className="relative mx-auto w-full max-w-[760px] px-4 sm:px-0 pb-6 pt-4">
+          <form className="grid gap-4" onSubmit={(event) => void handleSubmit(event)}>
+            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-full border border-[#1C2231] bg-[#141C2B]/96 px-[12px] py-[12px] shadow-[0_4px_80px_rgba(0,0,0,0.05)] backdrop-blur-xl">
+              <button
+                aria-label="Attachments"
+                className="grid h-9 w-9 place-items-center rounded-full text-stone-400 transition-colors hover:bg-white/5 hover:text-stone-200"
+                onClick={handleLeadingAction}
+                type="button"
+              >
+                <Plus className="h-4.5 w-4.5" />
+              </button>
+              <textarea
+                className="max-h-56 min-h-6 w-full resize-none bg-transparent px-0 py-0 text-[1.02rem] leading-7 text-stone-100 outline-none placeholder:text-stone-500"
+                onChange={(event) => setComposer(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void handleSubmit();
+                  }
+                }}
+                placeholder="Ask Pluto"
+                ref={textareaRef}
+                rows={1}
+                value={composer}
+              />
+              <div className="flex items-center gap-2">
                 <button
-                  aria-label="Attachments"
+                  aria-label={composer.trim().length > 0 ? "Clear draft" : "Voice input"}
                   className="grid h-9 w-9 place-items-center rounded-full text-stone-400 transition-colors hover:bg-white/5 hover:text-stone-200"
-                  onClick={handleLeadingAction}
+                  onClick={handleMicAction}
                   type="button"
                 >
-                  <Plus className="h-4.5 w-4.5" />
+                  <Mic className="h-4.5 w-4.5" />
                 </button>
-                <textarea
-                  className="max-h-56 min-h-6 w-full resize-none bg-transparent px-0 py-0 text-[1.02rem] leading-7 text-stone-100 outline-none placeholder:text-stone-500"
-                  onChange={(event) => setComposer(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      void handleSubmit();
-                    }
-                  }}
-                  placeholder="Ask Pluto"
-                  ref={textareaRef}
-                  rows={1}
-                  value={composer}
-                />
-                <div className="flex items-center gap-2">
-                  <button
-                    aria-label={composer.trim().length > 0 ? "Clear draft" : "Voice input"}
-                    className="grid h-9 w-9 place-items-center rounded-full text-stone-400 transition-colors hover:bg-white/5 hover:text-stone-200"
-                    onClick={handleMicAction}
-                    type="button"
-                  >
-                    <Mic className="h-4.5 w-4.5" />
-                  </button>
-                  <Button className="h-9 w-9 rounded-full bg-[#0169cc] text-white hover:bg-[#0b74da]" size="icon" type="submit">
-                    <ArrowUpRight className="h-4.5 w-4.5" />
-                  </Button>
-                </div>
+                <Button className="h-9 w-9 rounded-full bg-[#0169cc] text-white hover:bg-[#0b74da]" size="icon" type="submit">
+                  <ArrowUpRight className="h-4.5 w-4.5" />
+                </Button>
               </div>
-              {status || !accountConnected ? (
-                <div className={cn("flex min-h-4 items-center justify-center gap-2 text-center text-xs", status ? "text-stone-300" : "text-stone-500")}>
-                  <Sparkles className="h-3.5 w-3.5 opacity-70" />
-                  {status || "Open Admin to connect ChatGPT."}
-                </div>
-              ) : null}
-              {state ? (
-                <PermissionsBar
-                  onApprove={() => pendingApprovalCommand && void handleApproveCommand(pendingApprovalCommand.id)}
-                  onChangeMode={(mode) => void handlePermissionModeChange(mode)}
-                  onReject={() => pendingApprovalCommand && void handleRejectCommand(pendingApprovalCommand.id)}
-                  pendingCommand={pendingApprovalCommand}
-                  permissionMode={state.permissionMode}
-                />
-              ) : null}
-            </form>
-          </div>
-        </footer>
-      </main>
+            </div>
+            {status || !accountConnected ? (
+              <div className={cn("flex min-h-4 items-center justify-center gap-2 text-center text-xs", status ? "text-stone-300" : "text-stone-500")}>
+                <Sparkles className="h-3.5 w-3.5 opacity-70" />
+                {status || "Open Admin to connect ChatGPT."}
+              </div>
+            ) : null}
+            {state ? (
+              <PermissionsBar
+                onApprove={() => pendingApprovalCommand && void handleApproveCommand(pendingApprovalCommand.id)}
+                onChangeMode={(mode) => void handlePermissionModeChange(mode)}
+                onReject={() => pendingApprovalCommand && void handleRejectCommand(pendingApprovalCommand.id)}
+                pendingCommand={pendingApprovalCommand}
+                permissionMode={state.permissionMode}
+              />
+            ) : null}
+          </form>
+        </div>
+      </footer>
 
       <Dialog onOpenChange={(open) => !open && setViewer(null)} open={Boolean(viewer)}>
         <DialogContent className="h-[min(84vh,900px)] p-0">
@@ -1132,6 +1136,6 @@ export function App() {
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
