@@ -5,19 +5,45 @@
   "type": "module",
   "packageManager": "pnpm@10.11.0",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev": "tsx src/bin/master.ts",
+    "build": "pnpm run build:web && tsc -p tsconfig.json",
+    "build:web": "vite build --config frontend/vite.config.ts",
+    "dev": "portless run pnpm run dev:raw",
+    "dev:raw": "tsx scripts/dev.ts",
+    "dev:master": "tsx src/bin/master.ts",
+    "dev:host": "tsx src/bin/host.ts",
+    "dev:web": "vite --config frontend/vite.config.ts",
     "master": "tsx src/bin/master.ts",
     "host": "tsx src/bin/host.ts",
     "smoke": "tsx scripts/smoke.ts"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-slot": "^1.2.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "katex": "^0.16.22",
+    "lucide-react": "^0.544.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "tailwind-merge": "^3.3.1",
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.18.1",
+    "tailwindcss": "^4.1.13",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "^7.1.5"
   }
 }

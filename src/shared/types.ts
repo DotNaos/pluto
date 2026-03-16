@@ -1,12 +1,15 @@
 export type CommandType = "workspace.read_file" | "workspace.write_file" | "process.run";
 
 export type CommandStatus =
+  | "pending_approval"
   | "queued"
   | "accepted"
   | "running"
   | "completed"
   | "failed"
   | "cancelled";
+
+export type PermissionMode = "default" | "full-access";
 
 export type RunStatus = "queued" | "running" | "completed" | "failed";
 
@@ -75,6 +78,8 @@ export interface CommandRecord {
   completedAt?: string;
   resultRef?: string;
   error?: string;
+  stdout?: string;
+  stderr?: string;
 }
 
 export interface ArtifactRecord {
@@ -97,6 +102,7 @@ export interface DomainEvent {
 export interface AppState {
   conversationId: string;
   activeContextId: string;
+  permissionMode: PermissionMode;
   messages: MessageRecord[];
   contextBoundaries: ContextBoundaryRecord[];
   contextSnapshots: ContextSnapshotRecord[];
@@ -147,6 +153,13 @@ export interface HostCommandCompletedEnvelope {
   result: Record<string, unknown>;
 }
 
+export interface HostCommandOutputEnvelope {
+  type: "command.output";
+  commandId: string;
+  stream: "stdout" | "stderr";
+  chunk: string;
+}
+
 export interface HostCommandFailedEnvelope {
   type: "command.failed";
   commandId: string;
@@ -159,6 +172,7 @@ export type HostToMasterMessage =
   | HostRegisterEnvelope
   | HostCommandAcceptedEnvelope
   | HostCommandRunningEnvelope
+  | HostCommandOutputEnvelope
   | HostCommandCompletedEnvelope
   | HostCommandFailedEnvelope;
 

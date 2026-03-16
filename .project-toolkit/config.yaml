@@ -2,7 +2,7 @@ project:
   name: pluto
 
 dev:
-  args: [pnpm, run, dev]
+  args: [pnpm, run, dev:raw]
   router:
     mode: portless
     name: pluto

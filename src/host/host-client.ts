@@ -36,6 +36,7 @@ export interface HostClientOptions {
   hostName: string;
   masterUrl: string;
   workspaces: HostWorkspaceConfig[];
+  fullAccess?: boolean;
 }
 
 export class HostClient {
@@ -103,7 +104,7 @@ export class HostClient {
           result = await this.writeWorkspaceFile(workspace.rootPath, command.payload);
           break;
         case "process.run":
-          result = await this.runProcess(workspace.rootPath, command.payload);
+          result = await this.runProcess(command.id, workspace.rootPath, command.payload);
           break;
         default:
           throw new Error(`Unsupported command type ${String(command.type)}`);
@@ -121,7 +122,7 @@ export class HostClient {
 
   private async readWorkspaceFile(rootPath: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     const relativePath = expectString(payload.path, "path");
-    const targetPath = resolveWorkspacePath(rootPath, relativePath);
+    const targetPath = this.resolvePath(rootPath, relativePath, payload);
     const content = await readFile(targetPath, "utf8");
 
     return {
@@ -134,7 +135,7 @@ export class HostClient {
   private async writeWorkspaceFile(rootPath: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     const relativePath = expectString(payload.path, "path");
     const content = expectString(payload.content, "content");
-    const targetPath = resolveWorkspacePath(rootPath, relativePath);
+    const targetPath = this.resolvePath(rootPath, relativePath, payload);
 
     await mkdir(dirname(targetPath), { recursive: true });
     await writeFile(targetPath, content, "utf8");
@@ -145,14 +146,21 @@ export class HostClient {
     };
   }
 
-  private async runProcess(rootPath: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+  private async runProcess(commandId: string, rootPath: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     const command = expectString(payload.command, "command");
     const argsValue = payload.args;
     const args = Array.isArray(argsValue) ? argsValue.map((item) => expectString(item, "args entry")) : [];
     const relativeCwd = typeof payload.cwd === "string" ? payload.cwd : ".";
-    const cwd = resolveWorkspacePath(rootPath, relativeCwd);
+    const cwd = this.resolvePath(rootPath, relativeCwd, payload);
 
-    const { stdout, stderr, exitCode } = await runSubprocess(command, args, cwd);
+    const { stdout, stderr, exitCode } = await runSubprocess(command, args, cwd, (stream, chunk) => {
+      this.send({
+        type: "command.output",
+        commandId,
+        stream,
+        chunk,
+      });
+    });
 
     return {
       cwd: relative(rootPath, cwd) || ".",
@@ -166,6 +174,14 @@ export class HostClient {
 
   private send(message: HostToMasterMessage): void {
     this.socket.send(JSON.stringify(message));
+  }
+
+  private resolvePath(rootPath: string, candidatePath: string, payload?: Record<string, unknown>): string {
+    if (this.options.fullAccess || payload?.fullAccess === true) {
+      return resolve(rootPath, candidatePath);
+    }
+
+    return resolveWorkspacePath(rootPath, candidatePath);
   }
 }
 
@@ -198,6 +214,7 @@ async function runSubprocess(
   command: string,
   args: string[],
   cwd: string,
+  onOutput?: (stream: "stdout" | "stderr", chunk: string) => void,
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolveRun, rejectRun) => {
     const child = spawn(command, args, {
@@ -209,8 +226,16 @@ async function runSubprocess(
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
 
-    child.stdout.on("data", (chunk) => stdout.push(Buffer.from(chunk)));
-    child.stderr.on("data", (chunk) => stderr.push(Buffer.from(chunk)));
+    child.stdout.on("data", (chunk) => {
+      const buffer = Buffer.from(chunk);
+      stdout.push(buffer);
+      onOutput?.("stdout", buffer.toString("utf8"));
+    });
+    child.stderr.on("data", (chunk) => {
+      const buffer = Buffer.from(chunk);
+      stderr.push(buffer);
+      onOutput?.("stderr", buffer.toString("utf8"));
+    });
     child.on("error", (error) => rejectRun(error));
     child.on("close", (exitCode) => {
       resolveRun({

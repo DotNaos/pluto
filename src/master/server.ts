@@ -2,14 +2,19 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, resolve } from "node:path";
 import { mkdir } from "node:fs/promises";
 import WebSocket, { WebSocketServer, type WebSocket as WebSocketConnection } from "ws";
-import { renderAdminHtml, renderChatHtml } from "./dashboard.js";
+import { renderAdminHtml } from "./dashboard.js";
+import { listCodexSessions } from "./codex-sessions.js";
+import { sendFileResponse } from "./file-response.js";
+import { PlutoAgent } from "./pluto-agent.js";
 import { StateStore } from "./state-store.js";
+import { sendWebDocument, trySendWebAsset } from "./web-static.js";
 import {
   type AppState,
   type CreateMessageRequest,
   type DomainEvent,
   type HostToMasterMessage,
   type MasterToHostMessage,
+  type PermissionMode,
 } from "../shared/types.js";
 
 async function readJsonBody<T>(request: IncomingMessage): Promise<T> {
@@ -49,6 +54,8 @@ export class MasterServer {
 
   private readonly store: StateStore;
 
+  private readonly agent: PlutoAgent;
+
   private readonly hostSockets = new Map<string, WebSocketConnection>();
 
   private readonly sseClients = new Set<ServerResponse>();
@@ -60,6 +67,7 @@ export class MasterServer {
   public constructor(options: MasterServerOptions) {
     this.options = options;
     this.store = new StateStore(options.stateFile);
+    this.agent = new PlutoAgent(process.cwd());
 
     this.server.on("upgrade", (request, socket, head) => {
       const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
@@ -106,10 +114,60 @@ export class MasterServer {
         resolveClose();
       });
     });
+
+    await this.agent.close();
   }
 
   public getState(): AppState {
     return this.store.snapshot();
+  }
+
+  private dispatchCommand(hostId: string, command: AppState["commands"][number], response?: ServerResponse): boolean {
+    const socket = this.hostSockets.get(hostId);
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      this.store.failCommand(command.id, `Host ${hostId} is not currently connected.`);
+      if (response) {
+        sendJson(response, 409, { error: `Host ${hostId} is not currently connected.` });
+      }
+      return false;
+    }
+
+    const envelope: MasterToHostMessage = { type: "command.dispatch", command };
+    socket.send(JSON.stringify(envelope));
+    return true;
+  }
+
+  private startAssistantReply(messageId: string, promptState: AppState): void {
+    const draft = this.store.createAssistantDraft();
+
+    void this.agent.reply(promptState, {
+      permissionMode: promptState.permissionMode,
+      onDelta: (text) => {
+        this.store.replaceMessageText(draft.id, text);
+      },
+      onToolStart: (tool) => {
+        this.store.beginAgentToolCommand(messageId, {
+          commandId: tool.commandId,
+          command: tool.command,
+          cwd: tool.cwd,
+        });
+      },
+      onToolEnd: (tool) => {
+        this.store.completeAgentToolCommand(tool.commandId, {
+          stdout: tool.stdout,
+          stderr: tool.stderr,
+          exitCode: tool.exitCode,
+          error: tool.status === "failed" ? tool.stderr || "Command failed." : undefined,
+        });
+      },
+    }).then((reply) => {
+      this.store.replaceMessageText(draft.id, reply);
+    }).catch((error) => {
+      const errorMessage = error instanceof Error
+        ? `Pluto could not generate a reply: ${error.message}`
+        : "Pluto could not generate a reply.";
+      this.store.replaceMessageText(draft.id, errorMessage);
+    });
   }
 
   private async handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
@@ -120,10 +178,30 @@ export class MasterServer {
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/favicon.ico") {
+      response.statusCode = 204;
+      response.end();
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/") {
-      response.statusCode = 200;
-      response.setHeader("content-type", "text/html; charset=utf-8");
-      response.end(renderChatHtml());
+      let runtime: unknown;
+      try {
+        runtime = await this.agent.runtime();
+      } catch {
+        runtime = {
+          model: null,
+          availableModels: [],
+          account: null,
+          requiresOpenaiAuth: true,
+        };
+      }
+
+      if (await sendWebDocument(response, { state: this.store.snapshot(), runtime })) {
+        return;
+      }
+
+      sendJson(response, 503, { error: "frontend build missing. Run `pnpm run build:web`." });
       return;
     }
 
@@ -134,8 +212,67 @@ export class MasterServer {
       return;
     }
 
+    if (request.method === "GET" && url.pathname.startsWith("/assets/")) {
+      if (await trySendWebAsset(response, url.pathname)) {
+        return;
+      }
+
+      sendJson(response, 404, { error: "asset not found" });
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/api/state") {
       sendJson(response, 200, this.store.snapshot());
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/file") {
+      const requestedPath = url.searchParams.get("path");
+      if (!requestedPath) {
+        sendJson(response, 400, { error: "path is required" });
+        return;
+      }
+
+      try {
+        await sendFileResponse(response, requestedPath, {
+          download: url.searchParams.get("download") === "1",
+        });
+      } catch (error) {
+        sendJson(response, 404, { error: error instanceof Error ? error.message : "file could not be served" });
+      }
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/runtime") {
+      try {
+        sendJson(response, 200, await this.agent.runtime());
+      } catch (error) {
+        sendJson(response, 503, {
+          chatProvider: "codex-app-server",
+          model: null,
+          availableModels: [],
+          account: null,
+          requiresOpenaiAuth: true,
+          login: { status: "error", error: error instanceof Error ? error.message : "Codex runtime unavailable." },
+        });
+      }
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/codex/sessions") {
+      try {
+        const runtime = await this.agent.runtime();
+        sendJson(response, 200, {
+          currentThreadId: runtime.threadId,
+          sessions: await listCodexSessions(runtime.threadId),
+        });
+      } catch (error) {
+        sendJson(response, 503, {
+          error: error instanceof Error ? error.message : "Codex sessions unavailable.",
+          currentThreadId: null,
+          sessions: [],
+        });
+      }
       return;
     }
 
@@ -158,6 +295,101 @@ export class MasterServer {
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/api/runtime/model") {
+      try {
+        const body = await readJsonBody<{ model?: string }>(request);
+        if (!body.model || body.model.trim() === "") {
+          sendJson(response, 400, { error: "model is required" });
+          return;
+        }
+
+        await this.agent.setModel(body.model);
+        sendJson(response, 200, await this.agent.runtime());
+      } catch (error) {
+        sendJson(response, 400, { error: error instanceof Error ? error.message : "invalid request" });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/runtime/permissions") {
+      try {
+        const body = await readJsonBody<{ permissionMode?: PermissionMode }>(request);
+        if (body.permissionMode !== "default" && body.permissionMode !== "full-access") {
+          sendJson(response, 400, { error: "permissionMode must be 'default' or 'full-access'" });
+          return;
+        }
+
+        const nextState = this.store.setPermissionMode(body.permissionMode);
+        await this.agent.resetThread();
+        sendJson(response, 200, nextState);
+      } catch (error) {
+        sendJson(response, 400, { error: error instanceof Error ? error.message : "invalid request" });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/auth/login") {
+      try {
+        sendJson(response, 200, await this.agent.startLogin());
+      } catch (error) {
+        sendJson(response, 502, { error: error instanceof Error ? error.message : "login could not be started" });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/auth/login/cancel") {
+      try {
+        const body = await readJsonBody<{ loginId?: string }>(request);
+        sendJson(response, 200, await this.agent.cancelLogin(body.loginId));
+      } catch (error) {
+        sendJson(response, 400, { error: error instanceof Error ? error.message : "login could not be cancelled" });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/auth/logout") {
+      try {
+        sendJson(response, 200, await this.agent.logout());
+      } catch (error) {
+        sendJson(response, 502, { error: error instanceof Error ? error.message : "logout failed" });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/codex/sessions/attach") {
+      try {
+        const body = await readJsonBody<{ threadId?: string }>(request);
+        if (!body.threadId || body.threadId.trim() === "") {
+          sendJson(response, 400, { error: "threadId is required" });
+          return;
+        }
+
+        const runtime = await this.agent.attachThread(body.threadId);
+        sendJson(response, 200, {
+          runtime,
+          currentThreadId: runtime.threadId,
+          sessions: await listCodexSessions(runtime.threadId),
+        });
+      } catch (error) {
+        sendJson(response, 400, { error: error instanceof Error ? error.message : "Could not attach thread." });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/codex/sessions/reset") {
+      try {
+        const runtime = await this.agent.resetThread();
+        sendJson(response, 200, {
+          runtime,
+          currentThreadId: runtime.threadId,
+          sessions: await listCodexSessions(runtime.threadId),
+        });
+      } catch (error) {
+        sendJson(response, 400, { error: error instanceof Error ? error.message : "Could not reset thread." });
+      }
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/messages") {
       try {
         const body = await readJsonBody<CreateMessageRequest>(request);
@@ -166,22 +398,48 @@ export class MasterServer {
           return;
         }
 
-        const { dispatch } = this.store.createMessageAndDispatch(body);
+        const outcome = this.store.createMessageAndDispatch(body);
+        const { dispatch, requiresAssistantReply, message } = outcome;
+        if (requiresAssistantReply) {
+          this.startAssistantReply(message.id, this.store.snapshot());
+        }
+
         if (dispatch) {
-          const socket = this.hostSockets.get(dispatch.hostId);
-          if (!socket || socket.readyState !== WebSocket.OPEN) {
-            this.store.failCommand(dispatch.command.id, `Host ${dispatch.hostId} is not currently connected.`);
-            sendJson(response, 409, { error: `Host ${dispatch.hostId} is not currently connected.` });
+          if (!this.dispatchCommand(dispatch.hostId, dispatch.command, response)) {
             return;
           }
-
-          const envelope: MasterToHostMessage = { type: "command.dispatch", command: dispatch.command };
-          socket.send(JSON.stringify(envelope));
         }
 
         sendJson(response, 202, this.store.snapshot());
       } catch (error) {
         sendJson(response, 409, { error: error instanceof Error ? error.message : "unknown error" });
+      }
+      return;
+    }
+
+    const approveMatch = request.method === "POST" ? url.pathname.match(/^\/api\/commands\/([^/]+)\/approve$/) : null;
+    if (approveMatch) {
+      try {
+        const commandId = decodeURIComponent(approveMatch[1]);
+        const approved = this.store.approveCommand(commandId);
+        if (!this.dispatchCommand(approved.targetHost, approved, response)) {
+          return;
+        }
+        sendJson(response, 200, this.store.snapshot());
+      } catch (error) {
+        sendJson(response, 400, { error: error instanceof Error ? error.message : "could not approve command" });
+      }
+      return;
+    }
+
+    const rejectMatch = request.method === "POST" ? url.pathname.match(/^\/api\/commands\/([^/]+)\/reject$/) : null;
+    if (rejectMatch) {
+      try {
+        const commandId = decodeURIComponent(rejectMatch[1]);
+        this.store.rejectCommand(commandId);
+        sendJson(response, 200, this.store.snapshot());
+      } catch (error) {
+        sendJson(response, 400, { error: error instanceof Error ? error.message : "could not reject command" });
       }
       return;
     }
@@ -206,6 +464,9 @@ export class MasterServer {
           break;
         case "command.running":
           this.store.updateCommandStatus(message.commandId, "running");
+          break;
+        case "command.output":
+          this.store.appendCommandOutput(message.commandId, message.stream, message.chunk);
           break;
         case "command.completed":
           this.store.completeCommand(message.commandId, message.result);

@@ -14,6 +14,7 @@ import {
   type HostRegistration,
   type HostRecord,
   type MessageRecord,
+  type PermissionMode,
   type RunRecord,
   type WorkspaceRecord,
 } from "../shared/types.js";
@@ -30,6 +31,7 @@ function createInitialState(): AppState {
   return {
     conversationId: "pluto",
     activeContextId: "ctx-001",
+    permissionMode: "default",
     messages: [],
     contextBoundaries: [],
     contextSnapshots: [],
@@ -47,12 +49,29 @@ export interface QueuedDispatch {
   command: CommandRecord;
 }
 
+export interface CreateMessageOutcome {
+  message: MessageRecord;
+  dispatch?: QueuedDispatch;
+  requiresAssistantReply?: boolean;
+}
+
 interface ResolvedDispatchRequest {
   commandType: CommandType;
   payload: Record<string, unknown>;
   hostId?: string;
   workspaceId?: string;
 }
+
+const PROCESS_ALLOWLIST: RegExp[] = [
+  /^(pwd|ls|git\s+status|git\s+diff|rg\b|cat\b|echo\b)/i,
+];
+
+const PROCESS_BLACKLIST: RegExp[] = [
+  /\bsudo\b/i,
+  /\brm\s+-rf\s+\/\b/i,
+  /\bshutdown\b/i,
+  /\breboot\b/i,
+];
 
 export class StateStore extends EventEmitter {
   private readonly stateFile: string;
@@ -67,6 +86,145 @@ export class StateStore extends EventEmitter {
 
   public snapshot(): AppState {
     return clone(this.state);
+  }
+
+  public setPermissionMode(permissionMode: PermissionMode): AppState {
+    this.state.permissionMode = permissionMode;
+    this.persist();
+    this.recordEvent("permissions.updated", { permissionMode });
+    return this.snapshot();
+  }
+
+  public beginAgentToolCommand(messageId: string, input: {
+    commandId: string;
+    command: string;
+    cwd?: string;
+  }): CommandRecord {
+    const run = this.ensureAgentRun(messageId);
+    const timestamp = now();
+    const existing = this.state.commands.find((candidate) => candidate.id === input.commandId);
+
+    if (existing) {
+      existing.status = "running";
+      existing.updatedAt = timestamp;
+      existing.payload = {
+        ...existing.payload,
+        command: "sh",
+        args: ["-lc", input.command],
+        cwd: input.cwd ?? ".",
+      };
+      this.persist();
+      this.recordEvent("command.status.updated", {
+        commandId: existing.id,
+        runId: run.id,
+        status: existing.status,
+        type: existing.type,
+      });
+      return clone(existing);
+    }
+
+    const command: CommandRecord = {
+      id: input.commandId,
+      runId: run.id,
+      targetHost: "codex-app-server",
+      targetWorkspace: "codex:cwd",
+      type: "process.run",
+      payload: {
+        command: "sh",
+        args: ["-lc", input.command],
+        cwd: input.cwd ?? ".",
+        fullAccess: this.state.permissionMode === "full-access",
+      },
+      status: "running",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      acceptedAt: timestamp,
+      startedAt: timestamp,
+      stdout: "",
+      stderr: "",
+    };
+
+    run.status = "running";
+    run.updatedAt = timestamp;
+    run.commandIds.push(command.id);
+
+    this.state.commands.push(command);
+    this.persist();
+    this.recordEvent("command.status.updated", {
+      commandId: command.id,
+      runId: run.id,
+      status: command.status,
+      type: command.type,
+    });
+    return clone(command);
+  }
+
+  public completeAgentToolCommand(commandId: string, output: {
+    stdout?: string;
+    stderr?: string;
+    exitCode?: number;
+    error?: string;
+  }): void {
+    const command = this.mustFindCommand(commandId);
+    const run = this.mustFindRun(command.runId);
+    const timestamp = now();
+    const stdout = typeof output.stdout === "string" ? output.stdout : "";
+    const stderr = typeof output.stderr === "string" ? output.stderr : "";
+
+    if (stdout && stdout !== command.stdout) {
+      command.stdout = stdout;
+      this.recordEvent("command.output", {
+        commandId,
+        runId: run.id,
+        stream: "stdout",
+        chunk: stdout,
+        stdout,
+        stderr: command.stderr ?? "",
+        status: "running",
+      });
+    }
+
+    if (stderr && stderr !== command.stderr) {
+      command.stderr = stderr;
+      this.recordEvent("command.output", {
+        commandId,
+        runId: run.id,
+        stream: "stderr",
+        chunk: stderr,
+        stdout: command.stdout ?? "",
+        stderr,
+        status: "running",
+      });
+    }
+
+    command.updatedAt = timestamp;
+    command.completedAt = timestamp;
+
+    if (output.error) {
+      command.status = "failed";
+      command.error = output.error;
+      run.status = "failed";
+      this.persist();
+      this.recordEvent("command.status.updated", {
+        commandId,
+        runId: run.id,
+        status: "failed",
+        error: output.error,
+      });
+      this.recordEvent("run.completed", { runId: run.id, status: run.status });
+      return;
+    }
+
+    command.status = "completed";
+    run.status = "completed";
+    run.updatedAt = timestamp;
+    this.persist();
+    this.recordEvent("command.status.updated", {
+      commandId,
+      runId: run.id,
+      status: "completed",
+    });
+    this.recordEvent("run.completed", { runId: run.id, status: run.status });
   }
 
   public registerHost(host: HostRegistration): void {
@@ -123,16 +281,12 @@ export class StateStore extends EventEmitter {
     this.recordEvent("host.disconnected", { hostId });
   }
 
-  public createMessageAndDispatch(request: CreateMessageRequest): { message: MessageRecord; dispatch?: QueuedDispatch } {
+  public createMessageAndDispatch(request: CreateMessageRequest): CreateMessageOutcome {
     const message = this.createMessage("user", request.text);
     const resolvedRequest = this.resolveDispatchRequest(request);
 
     if (!resolvedRequest) {
-      this.createMessage(
-        "assistant",
-        "Iteration 001 can currently read files, write files, and run shell commands. Try messages like 'read README.md', 'write notes/todo.md: buy milk', or 'run git status'.",
-      );
-      return { message };
+      return { message, requiresAssistantReply: true };
     }
 
     const host = resolvedRequest.hostId
@@ -166,10 +320,15 @@ export class StateStore extends EventEmitter {
       targetHost: host.id,
       targetWorkspace: workspace.id,
       type: resolvedRequest.commandType,
-      payload: resolvedRequest.payload,
-      status: "queued",
+      payload: {
+        ...resolvedRequest.payload,
+        fullAccess: this.state.permissionMode === "full-access",
+      },
+      status: this.requiresApproval(resolvedRequest.commandType, resolvedRequest.payload) ? "pending_approval" : "queued",
       createdAt: timestamp,
       updatedAt: timestamp,
+      stdout: "",
+      stderr: "",
     };
     run.commandIds.push(command.id);
 
@@ -185,7 +344,32 @@ export class StateStore extends EventEmitter {
     });
     this.createMessage("assistant", this.buildDispatchMessage(command, host.name, workspace.name), run.id);
 
+    if (command.status === "pending_approval") {
+      return { message };
+    }
+
     return { message, dispatch: { hostId: host.id, command } };
+  }
+
+  public createAssistantMessage(text: string, runId?: string): MessageRecord {
+    return this.createMessage("assistant", text, runId);
+  }
+
+  public createAssistantDraft(runId?: string): MessageRecord {
+    return this.createMessage("assistant", "", runId);
+  }
+
+  public replaceMessageText(messageId: string, text: string): MessageRecord {
+    const message = this.mustFindMessage(messageId);
+    message.text = text;
+    this.persist();
+    this.recordEvent("message.updated", {
+      messageId: message.id,
+      role: message.role,
+      runId: message.runId,
+      text: message.text,
+    });
+    return clone(message);
   }
 
   public updateCommandStatus(commandId: string, status: CommandStatus, error?: string): void {
@@ -221,6 +405,52 @@ export class StateStore extends EventEmitter {
     this.recordEvent("command.status.updated", { commandId, runId: run.id, status, error });
   }
 
+  public approveCommand(commandId: string): CommandRecord {
+    const command = this.mustFindCommand(commandId);
+    const run = this.mustFindRun(command.runId);
+    if (command.status !== "pending_approval") {
+      return clone(command);
+    }
+
+    const timestamp = now();
+    command.status = "queued";
+    command.updatedAt = timestamp;
+    run.updatedAt = timestamp;
+    this.persist();
+    this.recordEvent("command.status.updated", { commandId, runId: run.id, status: command.status });
+    return clone(command);
+  }
+
+  public rejectCommand(commandId: string, reason = "Permission denied."): void {
+    const command = this.mustFindCommand(commandId);
+    this.failCommand(commandId, reason);
+  }
+
+  public appendCommandOutput(commandId: string, stream: "stdout" | "stderr", chunk: string): void {
+    const command = this.mustFindCommand(commandId);
+    const run = this.mustFindRun(command.runId);
+    const nextChunk = chunk.replace(/\r\n/g, "\n");
+
+    if (stream === "stdout") {
+      command.stdout = `${command.stdout ?? ""}${nextChunk}`;
+    } else {
+      command.stderr = `${command.stderr ?? ""}${nextChunk}`;
+    }
+
+    command.updatedAt = now();
+    run.updatedAt = command.updatedAt;
+    this.persist();
+    this.recordEvent("command.output", {
+      commandId,
+      runId: run.id,
+      stream,
+      chunk: nextChunk,
+      stdout: command.stdout ?? "",
+      stderr: command.stderr ?? "",
+      status: command.status,
+    });
+  }
+
   public completeCommand(commandId: string, result: Record<string, unknown>): void {
     const command = this.mustFindCommand(commandId);
     const run = this.mustFindRun(command.runId);
@@ -231,6 +461,8 @@ export class StateStore extends EventEmitter {
     command.updatedAt = timestamp;
     command.completedAt = timestamp;
     command.resultRef = artifact.id;
+    command.stdout = typeof result.stdout === "string" ? result.stdout : command.stdout;
+    command.stderr = typeof result.stderr === "string" ? result.stderr : command.stderr;
 
     run.status = "completed";
     run.updatedAt = timestamp;
@@ -280,7 +512,14 @@ export class StateStore extends EventEmitter {
 
     this.state.messages.push(message);
     this.persist();
-    this.recordEvent("message.created", { messageId: message.id, role: message.role, runId });
+    this.recordEvent("message.created", {
+      messageId: message.id,
+      role: message.role,
+      runId,
+      text: message.text,
+      createdAt: message.createdAt,
+      contextId: message.contextId,
+    });
     return message;
   }
 
@@ -299,8 +538,10 @@ export class StateStore extends EventEmitter {
       return undefined;
     }
 
-    const readMatch = text.match(/^(?:read|open|show|cat)\s+(.+)$/i);
-    if (readMatch?.[1]) {
+    const normalized = normalizeWhitespace(text);
+
+    const readMatch = normalized.match(/^(?:read|open|show|cat)\s+(.+)$/i);
+    if (readMatch?.[1] && looksLikePath(readMatch[1])) {
       return {
         commandType: "workspace.read_file",
         payload: { path: sanitizePath(readMatch[1]) },
@@ -318,15 +559,11 @@ export class StateStore extends EventEmitter {
       };
     }
 
-    const runMatch = text.match(/^run\s+([\s\S]+)$/i);
+    const runMatch = normalized.match(/^run\s+([\s\S]+)$/i);
     if (runMatch?.[1]) {
       return {
         commandType: "process.run",
-        payload: {
-          command: "sh",
-          args: ["-lc", runMatch[1].trim()],
-          cwd: ".",
-        },
+        payload: buildRunPayload(runMatch[1]),
       };
     }
 
@@ -357,6 +594,10 @@ export class StateStore extends EventEmitter {
   }
 
   private buildDispatchMessage(command: CommandRecord, hostName: string, workspaceName: string): string {
+    if (command.status === "pending_approval") {
+      return `Awaiting permission to run command on ${hostName}/${workspaceName}.`;
+    }
+
     if (command.type === "workspace.read_file") {
       return `Reading ${String(command.payload.path)} on ${hostName}.`;
     }
@@ -398,12 +639,49 @@ export class StateStore extends EventEmitter {
     return command;
   }
 
+  private mustFindMessage(messageId: string): MessageRecord {
+    const message = this.state.messages.find((candidate) => candidate.id === messageId);
+    if (!message) {
+      throw new Error(`Message ${messageId} does not exist.`);
+    }
+
+    return message;
+  }
+
   private mustFindRun(runId: string): RunRecord {
     const run = this.state.runs.find((candidate) => candidate.id === runId);
     if (!run) {
       throw new Error(`Unknown run ${runId}`);
     }
 
+    return run;
+  }
+
+  private ensureAgentRun(messageId: string): RunRecord {
+    const existing = this.state.runs.find((candidate) => candidate.messageId === messageId && candidate.hostId === "codex-app-server");
+    if (existing) {
+      return existing;
+    }
+
+    const timestamp = now();
+    const run: RunRecord = {
+      id: randomUUID(),
+      messageId,
+      hostId: "codex-app-server",
+      workspaceId: "codex:cwd",
+      status: "running",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      commandIds: [],
+    };
+
+    this.state.runs.push(run);
+    this.persist();
+    this.recordEvent("run.started", {
+      runId: run.id,
+      hostId: run.hostId,
+      workspaceId: run.workspaceId,
+    });
     return run;
   }
 
@@ -442,8 +720,75 @@ export class StateStore extends EventEmitter {
     mkdirSync(dirname(this.stateFile), { recursive: true });
     writeFileSync(this.stateFile, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   }
+
+  private requiresApproval(commandType: CommandType, payload: Record<string, unknown>): boolean {
+    if (this.state.permissionMode === "full-access") {
+      return false;
+    }
+
+    if (commandType !== "process.run") {
+      return false;
+    }
+
+    const commandText = extractProcessText(payload);
+    if (!commandText) {
+      return true;
+    }
+
+    if (PROCESS_BLACKLIST.some((pattern) => pattern.test(commandText))) {
+      return true;
+    }
+
+    return !PROCESS_ALLOWLIST.some((pattern) => pattern.test(commandText));
+  }
 }
 
 function sanitizePath(value: string): string {
   return value.trim().replace(/^["']|["']$/g, "");
+}
+
+function extractProcessText(payload: Record<string, unknown>): string {
+  const command = typeof payload.command === "string" ? payload.command : "";
+  const args = Array.isArray(payload.args) ? payload.args.filter((item): item is string => typeof item === "string") : [];
+  if (command === "sh" && args[0] === "-lc" && args[1]) {
+    return args[1];
+  }
+
+  return [command, ...args].join(" ").trim();
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function looksLikePath(value: string): boolean {
+  const candidate = sanitizePath(value);
+  return /[./\\]/.test(candidate) || /\.[a-z0-9]{1,8}$/i.test(candidate);
+}
+
+function buildRunPayload(shellCommand: string): Record<string, unknown> {
+  return {
+    command: "sh",
+    args: ["-lc", shellCommand.trim()],
+    cwd: ".",
+  };
+}
+
+function findDelimitedContent(text: string): string | undefined {
+  const fenced = text.match(/```(?:\w+)?\n([\s\S]+?)```/);
+  if (fenced?.[1]) {
+    return fenced[1].trim();
+  }
+
+  const inline = text.match(/`([^`]+)`/);
+  if (inline?.[1]) {
+    return inline[1].trim();
+  }
+
+  const quoted = text.match(/["“”'']([^"“”'']{2,})["“”'']/);
+  if (quoted?.[1]) {
+    return quoted[1].trim();
+  }
+
+  return undefined;
 }

@@ -7,6 +7,7 @@ const args = process.argv.slice(2);
 const masterUrl = readFlag(args, "--master-url") ?? "ws://127.0.0.1:4318";
 const hostId = readFlag(args, "--host-id") ?? "laptop";
 const hostName = readFlag(args, "--host-name") ?? "Laptop";
+const fullAccess = args.includes("--full-access") || process.env.PLUTO_HOST_FULL_ACCESS === "1";
 const workspaceArgs = readRepeatedFlag(args, "--workspace");
 const workspaces = workspaceArgs.length > 0
   ? workspaceArgs.map((entry) => {
@@ -34,10 +35,11 @@ const client = new HostClient({
   hostId,
   hostName,
   workspaces,
+  fullAccess,
 });
 
 await client.connect();
-console.log(`Pluto host ${hostId} connected to ${masterUrl}`);
+console.log(`Pluto host ${hostId} connected to ${masterUrl}${fullAccess ? " (full access)" : ""}`);
 
 const shutdown = async (): Promise<void> => {
   await client.close();
