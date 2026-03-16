@@ -520,26 +520,47 @@ function PermissionsBar({
   onChangeMode,
   onApprove,
   onReject,
+  model,
+  availableModels,
+  onModelChange,
 }: {
   permissionMode: AppState["permissionMode"];
   pendingCommand?: CommandRecord;
   onChangeMode: (mode: AppState["permissionMode"]) => void;
   onApprove: () => void;
   onReject: () => void;
+  model?: string;
+  availableModels: string[];
+  onModelChange: (model: string) => void;
 }) {
   return (
     <div className="grid gap-2">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Select onValueChange={(value) => void onModelChange(value)} value={model}>
+          <SelectTrigger aria-label="Select model" className="w-fit h-8 justify-start gap-1.5 rounded-full border-transparent bg-transparent px-2 py-1 text-[0.8rem] font-medium text-stone-400 hover:bg-white/5 hover:text-stone-200 transition-colors shadow-none ring-0 focus:ring-0 focus:ring-offset-0">
+            <span>
+              <SelectValue placeholder="model" />
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            {availableModels.map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <Select onValueChange={(value) => onChangeMode(value as AppState["permissionMode"])} value={permissionMode}>
-          <SelectTrigger aria-label="Permission mode" className={cn("w-fit h-8 justify-start gap-1.5 rounded-full border-transparent bg-transparent px-4 py-1.5 text-xs font-medium transition-colors shadow-none ring-0 focus:ring-0 focus:ring-offset-0", permissionMode === "full-access" ? "text-amber-500 hover:bg-amber-500/10 hover:text-amber-400" : "text-stone-400 hover:bg-white/5 hover:text-stone-200")}>
+          <SelectTrigger aria-label="Permission mode" className={cn("w-fit h-8 justify-start gap-1.5 rounded-full border-transparent bg-transparent px-2 py-1 text-[0.8rem] font-medium transition-colors shadow-none ring-0 focus:ring-0 focus:ring-offset-0", permissionMode === "full-access" ? "text-amber-500 hover:bg-amber-500/10 hover:text-amber-400" : "text-stone-400 hover:bg-white/5 hover:text-stone-200")}>
             {permissionMode === "full-access" ? <ShieldAlert className="h-3.5 w-3.5 shrink-0" /> : <ShieldCheck className="h-3.5 w-3.5 shrink-0" />}
-            <span>{permissionMode === "full-access" ? "Full Access" : "Default Permissions"}</span>
+            <span>{permissionMode === "full-access" ? "Full Access" : "Standard"}</span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="default">
               <span className="inline-flex w-full items-center gap-2 pr-6">
                 <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-stone-400" />
-                <span className="text-xs">Default permissions</span>
+                <span className="text-xs">Standard permissions</span>
               </span>
             </SelectItem>
             <SelectItem value="full-access">
@@ -875,11 +896,11 @@ export function App() {
     });
     const body = await response.json();
     if (!response.ok) {
-      setStatus(body.error || "Model switch failed.");
+      setStatus("");
       return;
     }
 
-    setStatus("Model updated.");
+    setStatus("");
     await loadRuntime();
   }
 
@@ -953,7 +974,7 @@ export function App() {
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#101827]">
       <header className="z-20 flex min-h-14 items-center justify-between gap-4 bg-[#101827]/80 px-4 py-3 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-[760px] items-center justify-between gap-4">
-          <div className="min-w-[138px]" />
+          <div className="min-w-[80px]" />
           <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.18)]">
             <div className="grid h-7 w-7 place-items-center rounded-full border border-white/6 bg-white/[0.05]">
               <Orbit className="h-3.5 w-3.5 text-stone-200" />
@@ -962,20 +983,8 @@ export function App() {
               <strong className="font-[var(--font-mono)] text-xs font-semibold tracking-[0.14em] text-stone-200 lowercase">pluto</strong>
             </div>
           </div>
-          <div className="flex min-w-[138px] items-center justify-end gap-2">
-            <Select onValueChange={(value) => void handleModelChange(value)} value={runtime?.model ?? undefined}>
-              <SelectTrigger aria-label="Select model" className="h-8 border-white/10 bg-white/5">
-                <SelectValue placeholder="model" />
-              </SelectTrigger>
-              <SelectContent>
-                {models.map((model) => (
-                  <SelectItem key={model} value={model}>
-                    {model}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button asChild size="sm" variant="secondary" className="h-8">
+          <div className="flex min-w-[80px] items-center justify-end gap-2">
+            <Button asChild size="sm" variant="secondary" className="h-8 border-transparent bg-transparent text-stone-400 hover:bg-white/5 hover:text-stone-200 transition-colors">
               <a href="/admin">
                 <PanelsTopLeft className="h-3.5 w-3.5" />
                 Admin
@@ -1103,6 +1112,9 @@ export function App() {
                 onReject={() => pendingApprovalCommand && void handleRejectCommand(pendingApprovalCommand.id)}
                 pendingCommand={pendingApprovalCommand}
                 permissionMode={state.permissionMode}
+                model={runtime?.model ?? undefined}
+                availableModels={models}
+                onModelChange={(model) => void handleModelChange(model)}
               />
             ) : null}
           </form>

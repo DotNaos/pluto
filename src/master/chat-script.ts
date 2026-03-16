@@ -655,12 +655,12 @@ export const chatScript = String.raw`
 
           const body = await response.json();
           if (!response.ok) {
-            statusLine.textContent = body.error || "Model switch failed.";
-            statusLine.className = "subtle warn";
+            statusLine.textContent = "";
+            statusLine.className = "subtle";
             return;
           }
 
-          statusLine.textContent = "Model updated.";
+          statusLine.textContent = "";
           statusLine.className = "subtle";
           await loadRuntime();
         } catch (error) {
