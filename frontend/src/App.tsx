@@ -536,7 +536,7 @@ function PermissionsBar({
   return (
     <div className="grid gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Select onValueChange={(value) => void onModelChange(value)} value={model}>
+        <Select onValueChange={(value: string) => void onModelChange(value)} value={model}>
           <SelectTrigger aria-label="Select model" className="w-fit h-8 justify-start gap-1.5 rounded-full border-transparent bg-transparent px-2 py-1 text-[0.8rem] font-medium text-stone-400 hover:bg-white/5 hover:text-stone-200 transition-colors shadow-none ring-0 focus:ring-0 focus:ring-offset-0">
             <span>
               <SelectValue placeholder="model" />
@@ -973,24 +973,13 @@ export function App() {
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#101827]">
       <header className="z-20 flex min-h-14 items-center justify-between gap-4 bg-[#101827]/80 px-4 py-3 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-[760px] items-center justify-between gap-4">
-          <div className="min-w-[80px]" />
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.18)]">
-            <div className="grid h-7 w-7 place-items-center rounded-full border border-white/6 bg-white/[0.05]">
-              <Orbit className="h-3.5 w-3.5 text-stone-200" />
-            </div>
-            <div className="grid gap-0">
-              <strong className="font-[var(--font-mono)] text-xs font-semibold tracking-[0.14em] text-stone-200 lowercase">pluto</strong>
-            </div>
-          </div>
-          <div className="flex min-w-[80px] items-center justify-end gap-2">
-            <Button asChild size="sm" variant="secondary" className="h-8 border-transparent bg-transparent text-stone-400 hover:bg-white/5 hover:text-stone-200 transition-colors">
-              <a href="/admin">
-                <PanelsTopLeft className="h-3.5 w-3.5" />
-                Admin
-              </a>
-            </Button>
-          </div>
+        <div className="mx-auto flex w-full max-w-[760px] items-center justify-end gap-4">
+          <Button asChild size="sm" variant="secondary" className="h-8 rounded-full border border-white/10 bg-white/[0.03] px-4 text-xs font-medium tracking-wide text-stone-300 shadow-[0_2px_10px_rgba(0,0,0,0.12)] transition-all hover:bg-white/[0.08] hover:text-white">
+            <a href="/admin">
+              <PanelsTopLeft className="mr-1.5 h-3.5 w-3.5" />
+              Admin
+            </a>
+          </Button>
         </div>
       </header>
       
