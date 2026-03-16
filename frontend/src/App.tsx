@@ -381,7 +381,7 @@ function CodeCopyButton({ code }: { code: string }) {
 function ThinkingVisor() {
   return (
     <div aria-live="polite" className="visor-thinking" role="status">
-      <span className="visor-thinking__label">Pluto thinking</span>
+      <span className="visor-text text-sm font-medium tracking-wide">Pluto thinking...</span>
     </div>
   );
 }
@@ -451,7 +451,7 @@ function ToolCallCard({ command }: { command: CommandRecord }) {
         )}
         onClick={() => setIsOpen(!isOpen)}
       >
-        <div className={cn("tool-audit__summary transition-colors text-[0.8rem]", textColorClass)}>
+        <div className={cn("tool-audit__summary transition-colors text-[0.8rem]", (isRunning || isPending) ? "visor-text" : "", textColorClass)}>
           {getToolSummary(command)}
         </div>
         
