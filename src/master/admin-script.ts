@@ -215,9 +215,11 @@ export const adminScript = String.raw`
             : '<button class="primary" data-action="attach" data-thread-id="' + escapeHtml(session.id) + '" type="button">Attach</button>';
 
           return '<article class="session-card">'
+            + '<div class="session-card-content">'
             + '<div class="row"><strong>' + escapeHtml(session.title) + '</strong><div class="row chips">' + chips + '</div></div>'
-            + '<p class="muted">' + escapeHtml(formatTime(session.updatedAt)) + '</p>'
-            + '<p><code>' + escapeHtml(session.id) + '</code></p>'
+            + '<code>' + escapeHtml(session.id) + '</code>'
+            + '<span class="muted">' + escapeHtml(formatTime(session.updatedAt)) + '</span>'
+            + '</div>'
             + '<div class="actions">'
             + attachButton
             + '<button data-action="copy" data-thread-id="' + escapeHtml(session.id) + '" type="button">Copy ID</button>'

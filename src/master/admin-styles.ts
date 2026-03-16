@@ -226,37 +226,41 @@ export const adminStyles = String.raw`
   }
 
   .session-card {
-    padding: 16px 0;
+    padding: 12px 0;
     border-bottom: 1px solid rgba(255,255,255,0.02);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
   .session-card:last-child {
     border-bottom: none;
   }
+  .session-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
   .session-card .row {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    gap: 8px;
   }
   .session-card strong {
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 600;
   }
   .session-card .muted {
-    display: block;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--muted);
-    margin-bottom: 12px;
   }
   .session-card code {
     font-family: ui-monospace, monospace;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--soft);
-    display: block;
-    margin-bottom: 12px;
   }
   .session-card .actions {
     margin-top: 0;
+    flex-shrink: 0;
   }
 
   .actions {
