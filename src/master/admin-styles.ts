@@ -32,11 +32,7 @@ export const adminStyles = String.raw`
   }
 
   .shell {
-    border: 1px solid var(--line);
-    border-radius: 20px;
-    background: var(--surface);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
-    padding: 24px 32px;
+    padding: 0;
   }
 
   .shell-header {
@@ -137,51 +133,51 @@ export const adminStyles = String.raw`
     font-size: 0.8rem;
   }
 
-  .runtime-layout {
+  .status-grid {
     display: grid;
-    grid-template-columns: 1.2fr 1fr;
-    gap: 32px;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: stretch;
   }
 
-  .subsection-header {
+  .status-item {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .status-item strong {
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .status-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
   }
-
-  .subsection-header strong {
-    font-size: 0.95rem;
-  }
-
-  .subsection > p {
-    color: var(--ink);
-    font-size: 0.95rem;
-    line-height: 1.55;
-    margin: 0 0 16px;
-  }
-
-  .runtime-list {
-    display: grid;
-    gap: 0;
-  }
-
-  .runtime-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 12px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.02);
-    font-size: 0.9rem;
-  }
-  .runtime-row:first-child { border-top: 1px solid rgba(255,255,255,0.02); }
-  .runtime-row:last-child { border-bottom: none; }
-
-  .runtime-row span {
+  
+  .status-label {
+    font-size: 0.8rem;
     color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
   }
-  .runtime-row strong {
-    color: var(--ink);
-    font-weight: 700;
+
+  .notice-text {
+    font-size: 0.75rem;
+    color: #eab308;
+  }
+
+  .mini-actions {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
   }
 
   button,
@@ -306,8 +302,95 @@ export const adminStyles = String.raw`
   .item .muted { color: var(--muted); display: block; margin-top: 4px; }
 
   @media (max-width: 800px) {
-    .runtime-layout, .summary, .observability-grid {
+    .status-grid, .summary, .observability-grid {
       grid-template-columns: 1fr;
     }
+  }
+
+  .modal[open] {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 0;
+    width: 600px;
+    max-width: 90vw;
+    color: var(--ink);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(12px);
+  }
+  
+  .modal::backdrop {
+    background: rgba(16, 24, 39, 0.7);
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--line);
+  }
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .icon-btn {
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-btn:hover {
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .modal-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .search-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--line);
+    padding: 10px 16px;
+    border-radius: 8px;
+    color: var(--ink);
+    outline: none;
+    font-size: 0.9rem;
+  }
+  .search-input:focus {
+    border-color: rgba(255,255,255,0.2);
+  }
+
+  #btn-show-all-sessions {
+    appearance: none;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 6px 16px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  #btn-show-all-sessions:hover {
+    background: rgba(255, 255, 255, 0.08);
   }
 `;

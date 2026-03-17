@@ -4,16 +4,20 @@ export const adminScript = String.raw`
       const commandsEl = document.getElementById("commands");
       const artifactsEl = document.getElementById("artifacts");
       const eventsEl = document.getElementById("events");
-      const sessionsEl = document.getElementById("sessions");
+      const sessionsRecentEl = document.getElementById("sessions-recent");
+      const sessionsAllEl = document.getElementById("sessions-all");
+      const sessionsModalEl = document.getElementById("sessions-modal");
       const sessionCountEl = document.getElementById("session-count");
+      const btnShowAllSessionsEl = document.getElementById("btn-show-all-sessions");
+      const closeModalBtnEl = document.getElementById("close-modal");
+      const sessionSearchEl = document.getElementById("session-search");
+      
       const currentThreadLabelEl = document.getElementById("current-thread-label");
       const currentThreadIdEl = document.getElementById("current-thread-id");
       const resetThreadButtonEl = document.getElementById("reset-thread-button");
       const authHeadlineEl = document.getElementById("auth-headline");
-      const authCopyEl = document.getElementById("auth-copy");
       const authNoticeEl = document.getElementById("auth-notice");
       const authUpdatedEl = document.getElementById("auth-updated");
-      const runtimeDetailsEl = document.getElementById("runtime-details");
       const loginButtonEl = document.getElementById("login-button");
       const loginLinkEl = document.getElementById("login-link");
       const cancelLoginButtonEl = document.getElementById("cancel-login-button");
@@ -146,19 +150,6 @@ export const adminScript = String.raw`
         latestRuntime = runtime;
         const account = typeof runtime.account === "object" && runtime.account !== null ? runtime.account : null;
         const login = typeof runtime.login === "object" && runtime.login !== null ? runtime.login : { status: "idle" };
-        const model = typeof runtime.model === "string" ? runtime.model : "none";
-        const availableModels = Array.isArray(runtime.availableModels) ? runtime.availableModels.length : 0;
-
-        runtimeDetailsEl.innerHTML = [
-          ["provider", runtime.chatProvider || "unknown"],
-          ["model", model],
-          ["visible models", String(availableModels)],
-          ["thread", runtime.threadId || "fresh on next reply"],
-          ["account", account ? (account.type === "chatgpt" ? account.email : account.type) : "not connected"],
-          ["plan", account && account.type === "chatgpt" ? account.planType : "n/a"],
-        ].map(function(entry) {
-          return '<div class="runtime-row"><span>' + escapeHtml(entry[0]) + '</span><strong>' + escapeHtml(entry[1]) + '</strong></div>';
-        }).join("");
 
         authUpdatedEl.textContent = "runtime " + new Date().toLocaleTimeString();
         renderCurrentThread(runtime);
@@ -170,8 +161,7 @@ export const adminScript = String.raw`
 
         if (login.status === "pending" && login.authUrl) {
           authHeadlineEl.textContent = "Finish ChatGPT login";
-          authCopyEl.textContent = "Open the returned auth URL, complete login, then Pluto will refresh automatically.";
-          authNoticeEl.textContent = login.loginId ? "login id: " + login.loginId : "";
+          authNoticeEl.textContent = "Open the returned URL to complete auth login flow.";
           loginLinkEl.href = login.authUrl;
           return;
         }
@@ -179,28 +169,23 @@ export const adminScript = String.raw`
         loginLinkEl.href = "#";
 
         if (account && account.type === "chatgpt") {
-          authHeadlineEl.textContent = "ChatGPT connected";
-          authCopyEl.textContent = account.email + " on plan " + account.planType + ". Pluto replies run through the local Codex app-server.";
-          authNoticeEl.textContent = "";
+          authHeadlineEl.textContent = account.email;
+          authNoticeEl.textContent = "Connected to ChatGPT (" + account.planType + ")";
           return;
         }
 
         if (login.status === "error") {
           authHeadlineEl.textContent = "ChatGPT login failed";
-          authCopyEl.textContent = "Start the login flow again from here.";
           authNoticeEl.textContent = login.error || "Unknown login error.";
           return;
         }
 
-        authHeadlineEl.textContent = "ChatGPT account required";
-        authCopyEl.textContent = "Pluto does not use an API key here. Connect your ChatGPT account through Codex.";
-        authNoticeEl.textContent = "";
+        authHeadlineEl.textContent = "Not connected";
+        authNoticeEl.textContent = "Pluto uses the local Codex app-server for auth.";
       }
 
-      function renderSessions(payload) {
-        latestSessions = Array.isArray(payload.sessions) ? payload.sessions : [];
-        sessionCountEl.textContent = latestSessions.length + " visible";
-        sessionsEl.innerHTML = latestSessions.map(function(session) {
+      function renderSessionListHtml(sessionsList) {
+        return sessionsList.map(function(session) {
           const chips = [
             session.isAttached ? '<span class="chip attached">attached</span>' : "",
             session.isActive ? '<span class="chip online">active</span>' : '<span class="chip muted">recent</span>',
@@ -227,6 +212,24 @@ export const adminScript = String.raw`
             + '</div>'
             + '</article>';
         }).join("") || '<div class="empty">No local Codex sessions found.</div>';
+      }
+
+      function renderModalSessions() {
+        if (!sessionsAllEl) return;
+        const query = (sessionSearchEl.value || "").toLowerCase();
+        const filtered = latestSessions.filter(s => s.title.toLowerCase().includes(query) || s.id.includes(query));
+        sessionsAllEl.innerHTML = renderSessionListHtml(filtered);
+      }
+
+      function renderSessions(payload) {
+        latestSessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+        if (sessionCountEl) sessionCountEl.textContent = "(" + latestSessions.length + ")";
+        
+        if (sessionsRecentEl) {
+          sessionsRecentEl.innerHTML = renderSessionListHtml(latestSessions.slice(0, 3));
+        }
+        
+        renderModalSessions();
 
         if (latestRuntime) {
           renderCurrentThread(latestRuntime);
@@ -277,7 +280,20 @@ export const adminScript = String.raw`
         authNoticeEl.textContent = "Pluto is now attached to " + threadId + ".";
       }
 
-      sessionsEl.addEventListener("click", async function(event) {
+      btnShowAllSessionsEl?.addEventListener("click", function() {
+        sessionsModalEl?.showModal();
+        renderModalSessions();
+      });
+
+      closeModalBtnEl?.addEventListener("click", function() {
+        sessionsModalEl?.close();
+      });
+
+      sessionSearchEl?.addEventListener("input", function() {
+        renderModalSessions();
+      });
+
+      async function handleSessionAction(event) {
         const button = event.target.closest("button[data-action]");
         if (!button) {
           return;
@@ -290,6 +306,7 @@ export const adminScript = String.raw`
         }
 
         if (action === "attach") {
+          sessionsModalEl?.close();
           await attachThread(threadId);
           return;
         }
@@ -298,7 +315,10 @@ export const adminScript = String.raw`
           await navigator.clipboard.writeText(threadId);
           authNoticeEl.textContent = "Copied thread id " + threadId + ".";
         }
-      });
+      }
+
+      sessionsRecentEl?.addEventListener("click", handleSessionAction);
+      sessionsAllEl?.addEventListener("click", handleSessionAction);
 
       loginButtonEl.addEventListener("click", async function() {
         const response = await fetch("/api/auth/login", { method: "POST" });

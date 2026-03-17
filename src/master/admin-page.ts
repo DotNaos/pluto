@@ -34,52 +34,43 @@ export function renderAdminHtml(): string {
         </div>
 
         <section class="section">
-          <div class="runtime-layout">
-            <div class="stack">
-              <section class="subsection">
-                <div class="subsection-header">
-                  <strong id="auth-headline">Checking ChatGPT account</strong>
-                </div>
-                <p id="auth-copy">Pluto uses the local Codex app-server and its ChatGPT-managed auth flow.</p>
-                <div class="actions">
-                  <button class="primary" id="login-button" type="button">Connect ChatGPT</button>
-                  <a class="primary" id="login-link" href="#" target="_blank" rel="noreferrer noopener" hidden>Open Auth</a>
-                  <button id="cancel-login-button" type="button" hidden>Cancel Login</button>
-                  <button id="logout-button" type="button" hidden>Logout</button>
-                </div>
-                <span class="notice" id="auth-notice" style="display:block;margin-top:8px;"></span>
-              </section>
-
-              <section class="subsection" style="margin-top: 24px;">
-                <div class="subsection-header">
-                  <strong>Attached Codex Thread</strong>
-                  <button id="reset-thread-button" type="button">New Pluto Thread</button>
-                </div>
-                <div class="thread-inline" id="current-thread-card">
-                  <strong id="current-thread-label">No attached thread yet</strong>
-                  <code id="current-thread-id">Pluto will start a fresh Codex thread on the next reply.</code>
-                </div>
-              </section>
+          <div class="status-grid">
+            <div class="status-item">
+              <div class="status-header">
+                <span class="status-label">ChatGPT Account</span>
+                <span id="auth-notice" class="notice-text"></span>
+              </div>
+              <strong id="auth-headline">Checking account...</strong>
+              <div class="actions mini-actions">
+                <button class="primary" id="login-button" type="button">Connect</button>
+                <a class="primary" id="login-link" href="#" target="_blank" rel="noreferrer noopener" hidden>Open Auth</a>
+                <button id="cancel-login-button" type="button" hidden>Cancel Login</button>
+                <button id="logout-button" type="button" hidden>Logout</button>
+              </div>
             </div>
 
-            <section class="subsection runtime-details-block">
-              <div class="subsection-header">
-                <strong>Runtime Details</strong>
+            <div class="status-item">
+              <div class="status-header">
+                <span class="status-label">Active Thread</span>
+                <code id="current-thread-id" class="muted">Pluto will start a fresh thread.</code>
               </div>
-              <div class="runtime-list" id="runtime-details"></div>
-            </section>
+              <strong id="current-thread-label">No attached thread</strong>
+              <div class="actions mini-actions">
+                <button id="reset-thread-button" type="button">New Thread</button>
+              </div>
+            </div>
           </div>
         </section>
 
         <section class="section">
           <header class="section-header">
             <div>
-              <strong>Codex Sessions</strong>
-              <p>Attach Pluto to an existing Codex thread, including currently active ones.</p>
+              <strong>Recent Sessions</strong>
+              <p>Attach Pluto to an existing Codex thread.</p>
             </div>
-            <small id="session-count"></small>
+            <button id="btn-show-all-sessions">View all <span id="session-count"></span></button>
           </header>
-          <div class="session-list" id="sessions"></div>
+          <div class="session-list" id="sessions-recent"></div>
         </section>
 
         <section class="section">
@@ -132,6 +123,20 @@ export function renderAdminHtml(): string {
         </section>
       </section>
     </main>
+
+    <dialog id="sessions-modal" class="modal">
+      <div class="modal-header">
+        <h3>All Sessions</h3>
+        <button id="close-modal" class="ghost icon-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M18 6 6 18M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="search" id="session-search" placeholder="Search sessions..." class="search-input" />
+        <div class="session-list" id="sessions-all"></div>
+      </div>
+    </dialog>
+
     <script type="module">${adminScript}</script>
   </body>
 </html>`;
