@@ -17,7 +17,6 @@ export const adminScript = String.raw`
       const resetThreadButtonEl = document.getElementById("reset-thread-button");
       const authHeadlineEl = document.getElementById("auth-headline");
       const authNoticeEl = document.getElementById("auth-notice");
-      const authUpdatedEl = document.getElementById("auth-updated");
       const loginButtonEl = document.getElementById("login-button");
       const loginLinkEl = document.getElementById("login-link");
       const cancelLoginButtonEl = document.getElementById("cancel-login-button");
@@ -151,7 +150,6 @@ export const adminScript = String.raw`
         const account = typeof runtime.account === "object" && runtime.account !== null ? runtime.account : null;
         const login = typeof runtime.login === "object" && runtime.login !== null ? runtime.login : { status: "idle" };
 
-        authUpdatedEl.textContent = "runtime " + new Date().toLocaleTimeString();
         renderCurrentThread(runtime);
 
         loginButtonEl.hidden = Boolean(account) || login.status === "pending";
