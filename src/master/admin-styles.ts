@@ -36,14 +36,10 @@ export const adminStyles = String.raw`
   }
 
   .shell-header {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
-  }
-
-  .back-link-wrapper {
-    grid-column: 2;
+    margin-bottom: 32px;
   }
 
   .back-link {
@@ -60,11 +56,11 @@ export const adminStyles = String.raw`
     font: 600 0.8rem ui-sans-serif, system-ui, sans-serif;
     text-decoration: none;
     transition: all 0.2s;
-    width: 320px;
+    padding: 0 16px 0 12px;
   }
 
   .back-link:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.08);
   }
 
   .back-link svg {
@@ -72,7 +68,6 @@ export const adminStyles = String.raw`
   }
 
   .hero-meta {
-    grid-column: 3;
     display: flex;
     justify-content: flex-end;
     gap: 8px;
@@ -89,24 +84,14 @@ export const adminStyles = String.raw`
     color: var(--soft);
   }
 
-  .hero-copy h1 {
-    font-size: 2.1rem;
-    font-weight: 700;
-    margin: 0 0 12px;
-    letter-spacing: -0.03em;
-  }
-
-  .hero-copy p {
-    color: var(--muted);
-    font-size: 0.95rem;
-    line-height: 1.5;
-    margin: 0 0 32px;
-    max-width: 38rem;
-  }
-
   .section {
     padding: 24px 0;
     border-top: 1px solid var(--line);
+  }
+  
+  .section:first-of-type {
+    border-top: none;
+    padding-top: 0;
   }
 
   .section-header {

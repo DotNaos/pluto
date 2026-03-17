@@ -28,10 +28,6 @@ export function renderAdminHtml(): string {
           </div>
         </header>
 
-        <div class="hero-copy">
-          <h1>Pluto Admin</h1>
-          <p>Connect Pluto to Codex, attach it to the right session, then inspect runtime health only when needed.</p>
-        </div>
 
         <section class="section">
           <div class="status-grid">
