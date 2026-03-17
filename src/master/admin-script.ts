@@ -1,5 +1,4 @@
 export const adminScript = String.raw`
-      const summaryEl = document.getElementById("system-summary");
       const hostsEl = document.getElementById("hosts");
       const commandsEl = document.getElementById("commands");
       const artifactsEl = document.getElementById("artifacts");
@@ -71,20 +70,6 @@ export const adminScript = String.raw`
         }
 
         return JSON.stringify(command.payload || {});
-      }
-
-      function renderSummary(state) {
-        const connectedHosts = state.hosts.filter((host) => host.connected).length;
-        const runningCommands = state.commands.filter((command) => command.status === "running" || command.status === "accepted").length;
-        const attachedThread = latestRuntime && latestRuntime.threadId ? "attached" : "fresh";
-        summaryEl.innerHTML = [
-          ["Messages", state.messages.length],
-          ["Connected Hosts", connectedHosts],
-          ["In-flight Commands", runningCommands],
-          ["Pluto Thread", attachedThread],
-        ].map(function(entry) {
-          return '<article class="summary-pill"><strong>' + escapeHtml(entry[1]) + '</strong><span>' + escapeHtml(entry[0]) + '</span></article>';
-        }).join("");
       }
 
       function renderHosts(state) {
@@ -237,7 +222,6 @@ export const adminScript = String.raw`
       async function loadState() {
         const response = await fetch("/api/state");
         const state = await response.json();
-        renderSummary(state);
         renderHosts(state);
         renderCommands(state);
         renderArtifacts(state);

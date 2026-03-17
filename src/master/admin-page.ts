@@ -69,15 +69,7 @@ export function renderAdminHtml(): string {
           <div class="session-list" id="sessions-recent"></div>
         </section>
 
-        <section class="section">
-          <header class="section-header">
-            <div>
-              <strong>System Summary</strong>
-              <p>Only the state that helps the next admin decision.</p>
-            </div>
-          </header>
-          <div class="summary" id="system-summary"></div>
-        </section>
+
 
         <section class="section">
           <header class="section-header">
